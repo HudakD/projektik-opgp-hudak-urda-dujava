@@ -181,27 +181,25 @@ class Game:
         self.ui_manager.draw_hud(self.screen, int(self.score_manager.get_current_score()), self.current_speed)
 
     def draw_pause_screen(self):
-        overlay = pygame.Surface((WIDTH, HEIGHT))
-        overlay.set_alpha(200)
-        overlay.fill((10, 10, 15))
+        overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        overlay.fill((10, 10, 15, 200))
         self.screen.blit(overlay, (0, 0))
 
         panel_width = 500
         panel_height = 300
         panel_x = WIDTH // 2 - panel_width // 2
         panel_y = HEIGHT // 2 - panel_height // 2
-
         panel_rect = pygame.Rect(panel_x, panel_y, panel_width, panel_height)
-        pygame.draw.rect(self.screen, (25, 25, 40), panel_rect, border_radius=20)
-        pygame.draw.rect(self.screen, self.ui_manager.accent_color, panel_rect, 4, border_radius=20)
+
+        self.ui_manager.draw_glass_panel(self.screen, panel_rect, alpha=255)
 
         self.ui_manager.draw_text(self.screen, "PAUZA", self.ui_manager.font_large,
-                                  self.ui_manager.gold_color, WIDTH // 2, panel_y + 80, center=True)
+                                  UI_GOLD, WIDTH // 2, panel_y + 80, center=True)
 
         self.ui_manager.draw_text(self.screen, "ESC - Pokračovať", self.ui_manager.font_medium,
-                                  self.ui_manager.text_color, WIDTH // 2, panel_y + 160, center=True)
+                                  UI_TEXT_MAIN, WIDTH // 2, panel_y + 160, center=True)
         self.ui_manager.draw_text(self.screen, "Q - Späť do menu", self.ui_manager.font_medium,
-                                  self.ui_manager.text_color, WIDTH // 2, panel_y + 210, center=True)
+                                  UI_TEXT_DIM, WIDTH // 2, panel_y + 210, center=True)
 
     def run(self):
         while self.running:

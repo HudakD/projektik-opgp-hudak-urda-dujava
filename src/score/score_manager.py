@@ -1,7 +1,6 @@
 import os
 from src.settings import SCORE_FILE, MAX_HIGHSCORES
 
-
 class ScoreManager:
 
     def __init__(self):
@@ -19,7 +18,7 @@ class ScoreManager:
                     line = line.strip()
                     if line:
                         name, score = line.split(',')
-                        scores.append({'name': name, 'score': int(score)})
+                        scores.append({'name': name, 'score': int(float(score))})
                 return scores
         except Exception as e:
             print(f"Chyba pri načítaní skóre: {e}")
@@ -29,7 +28,7 @@ class ScoreManager:
         try:
             with open(SCORE_FILE, 'w') as f:
                 for entry in self.highscores:
-                    f.write(f"{entry['name']},{entry['score']}\n")
+                    f.write(f"{entry['name']},{int(entry['score'])}\n")
         except Exception as e:
             print(f"Chyba pri ukladaní skóre: {e}")
 

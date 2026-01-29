@@ -35,3 +35,18 @@ OBSTACLE_SPAWN_INCREASE = 1  # o koľko častejšie sa spawnujú prekážky
 # Skóre
 SCORE_FILE = "highscores.txt"
 MAX_HIGHSCORES = 15
+
+# --- AAA UI COLORS ---
+UI_BG_DARK = (12, 12, 20)        # Veľmi tmavá modrá, takmer čierna
+UI_PANEL_BG = (20, 25, 40)       # Sklo efekt
+UI_ACCENT = (0, 255, 200)        # Neon Cyan (hlavná akčná farba)
+UI_ACCENT_HOVER = (150, 255, 230)
+UI_WARNING = (255, 60, 80)       # Neon Red/Pink
+UI_GOLD = (255, 215, 0)
+UI_TEXT_MAIN = (245, 245, 255)
+UI_TEXT_DIM = (140, 140, 160)
+
+# Prechod pre tachometer
+GAUGE_LOW = (0, 255, 128)
+GAUGE_MID = (255, 200, 0)
+GAUGE_HIGH = (255, 50, 50)

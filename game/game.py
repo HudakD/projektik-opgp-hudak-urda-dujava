@@ -71,7 +71,14 @@ class Game:
                 return
 
         if random.randint(0, self.obstacle_spawn_rate) == 0:
-            self.obstacles.append(ObstacleCar(-OBSTACLE_HEIGHT))
+            # Vytvoríme novú prekážku
+            new_obstacle = ObstacleCar(-OBSTACLE_HEIGHT)
+
+            # Vygenerujeme náhodný posun od stredu (vľavo, stred alebo vpravo)
+            # Rozsah ROAD_WIDTH // 3 zabezpečí, že auto zostane na asfalte
+            new_obstacle.offset = random.randint(-ROAD_WIDTH // 3, ROAD_WIDTH // 3)
+
+            self.obstacles.append(new_obstacle)
 
     def update_obstacles(self):
         for o in self.obstacles:
@@ -81,18 +88,21 @@ class Game:
         self.obstacles = [o for o in self.obstacles if o.y < HEIGHT + 200]
         after_count = len(self.obstacles)
 
-        passed = before_count - after_count - sum(1 for o in self.obstacles if o.y < self.player.y)
+        # Body sa pripočítajú za autá, ktoré hráč úspešne prešiel
+        passed = before_count - after_count
         if passed > 0:
             self.score_manager.increment_score(passed)
 
     def check_collisions(self):
-        center = self.road.get_center_at(self.player.y + PLAYER_HEIGHT // 2)
-        left = center - ROAD_WIDTH // 2
-        right = center + ROAD_WIDTH // 2
+        # 1. Kontrola kolízie s krajnicou (trávou)
+        center_at_player = self.road.get_center_at(self.player.y + PLAYER_HEIGHT // 2)
+        left_edge = center_at_player - ROAD_WIDTH // 2
+        right_edge = center_at_player + ROAD_WIDTH // 2
 
-        if self.player.x - PLAYER_WIDTH // 2 < left or self.player.x + PLAYER_WIDTH // 2 > right:
+        if self.player.x - PLAYER_WIDTH // 2 < left_edge or self.player.x + PLAYER_WIDTH // 2 > right_edge:
             return True
 
+        # 2. Kontrola kolízie s ostatnými formulami
         player_rect = pygame.Rect(
             self.player.x - PLAYER_WIDTH // 2,
             self.player.y,
@@ -101,7 +111,8 @@ class Game:
         )
 
         for o in self.obstacles:
-            c = self.road.get_center_at(o.y + OBSTACLE_HEIGHT // 2)
+            # Pri kontrole kolízie musíme použiť rovnaký offset ako pri kreslení
+            c = self.road.get_center_at(o.y + OBSTACLE_HEIGHT // 2) + o.offset
             obstacle_rect = pygame.Rect(
                 c - OBSTACLE_WIDTH // 2,
                 o.y,
@@ -162,6 +173,7 @@ class Game:
         self.update_obstacles()
         self.update_difficulty()
 
+        # Malý bonus k skóre za čas prežitia
         if pygame.time.get_ticks() % 10 == 0:
             self.score_manager.increment_score(0.1)
 
@@ -173,7 +185,8 @@ class Game:
         self.road.draw(self.screen)
 
         for o in self.obstacles:
-            c = self.road.get_center_at(o.y + OBSTACLE_HEIGHT // 2)
+            # Vykreslenie prekážky s jej uloženým náhodným posunom
+            c = self.road.get_center_at(o.y + OBSTACLE_HEIGHT // 2) + o.offset
             o.draw(self.screen, c)
 
         self.player.draw(self.screen)
@@ -194,12 +207,12 @@ class Game:
         self.ui_manager.draw_glass_panel(self.screen, panel_rect, alpha=255)
 
         self.ui_manager.draw_text(self.screen, "PAUZA", self.ui_manager.font_large,
-                                  UI_GOLD, WIDTH // 2, panel_y + 80, center=True)
+            UI_GOLD, WIDTH // 2, panel_y + 80, center=True)
 
         self.ui_manager.draw_text(self.screen, "ESC - Pokračovať", self.ui_manager.font_medium,
-                                  UI_TEXT_MAIN, WIDTH // 2, panel_y + 160, center=True)
+            UI_TEXT_MAIN, WIDTH // 2, panel_y + 160, center=True)
         self.ui_manager.draw_text(self.screen, "Q - Späť do menu", self.ui_manager.font_medium,
-                                  UI_TEXT_DIM, WIDTH // 2, panel_y + 210, center=True)
+            UI_TEXT_DIM, WIDTH // 2, panel_y + 210, center=True)
 
     def run(self):
         while self.running:
@@ -228,7 +241,7 @@ class Game:
 
             if self.state == GameState.MENU:
                 if self.ui_manager.draw_menu(self.screen, self.score_manager.get_highscores(), mouse_pos,
-                                             mouse_clicked):
+                    mouse_clicked):
                     self.reset_game()
                     self.state = GameState.PLAYING
 
@@ -245,7 +258,7 @@ class Game:
                 score = self.score_manager.get_current_score()
                 is_highscore = self.score_manager.is_highscore(score)
                 if self.ui_manager.draw_game_over_screen(self.screen, int(score), is_highscore, mouse_pos,
-                                                         mouse_clicked):
+                    mouse_clicked):
                     self.state = GameState.MENU
 
             elif self.state == GameState.ENTERING_NAME:

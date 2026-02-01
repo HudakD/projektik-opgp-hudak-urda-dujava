@@ -41,3 +41,8 @@ UI_TEXT_DIM = (140, 140, 160)
 GAUGE_LOW = (0, 255, 128)
 GAUGE_MID = (255, 200, 0)
 GAUGE_HIGH = (255, 50, 50)
+
+# Audio nastavenia
+SOUND_ON = True
+SFX_VOLUME = 0.6
+ENGINE_VOLUME = 0.2

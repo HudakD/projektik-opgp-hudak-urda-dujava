@@ -161,13 +161,13 @@ class UIManager:
 
             y_off += 35
 
-        keys_info = "[ TAB: TOP 20 ] [ ŠÍPKY: POHYB ] [ ESC: PAUZA ]"
+        # UPRAVENÁ NÁPOVEDA PRE ŠÍPKY
+        keys_info = "[ TAB: TOP 20 ] [ ESC: PAUZA ] [ M: MUTE ] [ ŠÍPKY HORE/DOLE: HLASITOSŤ ]"
         self.draw_text(screen, keys_info, self.font_tech, (80, 80, 100), WIDTH // 2, HEIGHT - 30, center=True)
 
         return self.start_button.is_clicked(mouse_pos, mouse_clicked)
 
     def draw_leaderboard(self, screen, highscores):
-        """Pridaná metóda pre TAB tabuľku (nezmenila nič na zvyšnom UI)"""
         overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 215))
         screen.blit(overlay, (0, 0))
@@ -186,10 +186,10 @@ class UIManager:
             self.draw_text(screen, f"{i + 1}.", self.font_small, color, panel_rect.x + 40, y_off)
             self.draw_text(screen, entry['name'][:15], self.font_small, UI_TEXT_MAIN, panel_rect.x + 100, y_off)
             self.draw_text(screen, f"{int(entry['score']):06d}", self.font_tech, UI_ACCENT, panel_rect.right - 120,
-                           y_off)
+            y_off)
             y_off += 27
 
-    def draw_hud(self, screen, score, speed):
+    def draw_hud(self, screen, score, speed, audio_manager):
         top_bar_height = 50
         s = pygame.Surface((WIDTH, top_bar_height))
         s.set_alpha(230)
@@ -202,6 +202,12 @@ class UIManager:
         self.draw_text(screen, "SCORE", self.font_small, UI_TEXT_DIM, 40, 12)
         score_surf = self.font_tech.render(score_formatted, True, UI_TEXT_MAIN)
         screen.blit(score_surf, (130, 10))
+
+        # Zobrazenie hlasitosti
+        vol_pct = int(audio_manager.engine_volume * 100) if not audio_manager.muted else 0
+        vol_color = UI_ACCENT if not audio_manager.muted else UI_WARNING
+        vol_text = f"VOL: {vol_pct}%" if not audio_manager.muted else "MUTE"
+        self.draw_text(screen, vol_text, self.font_tech, vol_color, 280, 10)
 
         level = int(score // DIFFICULTY_INCREASE_INTERVAL) + 1
         level_text = f"STAGE {level}"
@@ -236,9 +242,9 @@ class UIManager:
             [(panel_x, panel_y + panel_height), (panel_x + corner_size, panel_y + panel_height)],
             [(panel_x, panel_y + panel_height), (panel_x, panel_y + panel_height - corner_size)],
             [(panel_x + panel_width, panel_y + panel_height),
-             (panel_x + panel_width - corner_size, panel_y + panel_height)],
+            (panel_x + panel_width - corner_size, panel_y + panel_height)],
             [(panel_x + panel_width, panel_y + panel_height),
-             (panel_x + panel_width, panel_y + panel_height - corner_size)],
+            (panel_x + panel_width, panel_y + panel_height - corner_size)],
         ]
 
         for corner in corners:
@@ -321,11 +327,11 @@ class UIManager:
 
         self.draw_text(screen, "FINAL SCORE", self.font_small, UI_TEXT_DIM, WIDTH // 2, panel_y + 135, center=True)
         self.draw_text(screen, str(int(score)), self.font_large, (255, 255, 255), WIDTH // 2, panel_y + 170,
-                       center=True)
+        center=True)
 
         if is_highscore:
             self.draw_text(screen, "Zadaj meno a stlač ENTER", self.font_small, UI_ACCENT, WIDTH // 2, panel_y + 225,
-                           center=True)
+            center=True)
         else:
             self.continue_button.update(mouse_pos)
             self.continue_button.draw(screen)

@@ -6,8 +6,10 @@ from src.cars.player import Player
 from src.cars.obstacle import ObstacleCar
 from src.score.score_manager import ScoreManager
 from src.ui.ui_manager import UIManager
+from src.audio.audio_manager import AudioManager
 
 MIN_OBSTACLE_GAP = 300
+
 
 class GameState:
     MENU = 0
@@ -15,6 +17,7 @@ class GameState:
     GAME_OVER = 2
     ENTERING_NAME = 3
     PAUSED = 4
+
 
 class Game:
     def __init__(self):
@@ -26,6 +29,7 @@ class Game:
 
         self.score_manager = ScoreManager()
         self.ui_manager = UIManager()
+        self.audio = AudioManager()
 
         self.state = GameState.MENU
         self.player_name = ""
@@ -47,6 +51,7 @@ class Game:
         self.obstacle_spawn_rate = 8
         self.last_difficulty_score = 0
         self.player_name = ""
+        self.audio.start_engine()
 
     def increase_difficulty(self):
         if self.current_speed < MAX_SCROLL_SPEED:
@@ -115,6 +120,7 @@ class Game:
     def handle_menu_input(self, event, mouse_pos, mouse_clicked):
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE:
+                self.audio.play_sfx('click')
                 self.reset_game()
                 self.state = GameState.PLAYING
 
@@ -126,8 +132,10 @@ class Game:
     def handle_paused_input(self, event):
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
+                self.audio.play_sfx('click')
                 self.state = GameState.PLAYING
             elif event.key == pygame.K_q:
+                self.audio.stop_engine()
                 self.state = GameState.MENU
 
     def handle_game_over_input(self, event, mouse_pos, mouse_clicked):
@@ -135,21 +143,27 @@ class Game:
             if event.key == pygame.K_RETURN:
                 score = self.score_manager.get_current_score()
                 if self.score_manager.is_highscore(score):
+                    self.audio.play_sfx('highscore')
                     self.state = GameState.ENTERING_NAME
                 else:
+                    self.audio.play_sfx('click')
                     self.state = GameState.MENU
             elif event.key == pygame.K_ESCAPE:
+                self.audio.play_sfx('click')
                 self.state = GameState.MENU
 
     def handle_name_input(self, event):
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_RETURN and len(self.player_name) > 0:
+                self.audio.play_sfx('click')
                 self.score_manager.add_score(self.player_name, self.score_manager.get_current_score())
                 self.state = GameState.MENU
             elif event.key == pygame.K_BACKSPACE:
+                if len(self.player_name) > 0: self.audio.play_sfx('click')
                 self.player_name = self.player_name[:-1]
             elif len(self.player_name) < 15:
                 if event.unicode.isalnum() or event.unicode == ' ':
+                    self.audio.play_sfx('click')
                     self.player_name += event.unicode
 
     def update_game(self):
@@ -159,9 +173,12 @@ class Game:
         self.spawn_obstacle()
         self.update_obstacles()
         self.update_difficulty()
+        self.audio.update_engine_pitch(self.current_speed)
         self.score_manager.increment_score(self.current_speed / 100)
 
         if self.check_collisions():
+            self.audio.stop_engine()
+            self.audio.play_sfx('crash')
             self.state = GameState.GAME_OVER
 
     def draw_game(self):
@@ -171,7 +188,8 @@ class Game:
             c = self.road.get_center_at(o.y + OBSTACLE_HEIGHT // 2) + o.offset
             o.draw(self.screen, c)
         self.player.draw(self.screen)
-        self.ui_manager.draw_hud(self.screen, int(self.score_manager.get_current_score()), self.current_speed)
+        self.ui_manager.draw_hud(self.screen, int(self.score_manager.get_current_score()), self.current_speed,
+        self.audio)
 
     def draw_pause_screen(self):
         overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
@@ -179,9 +197,12 @@ class Game:
         self.screen.blit(overlay, (0, 0))
         panel_rect = pygame.Rect(WIDTH // 2 - 250, HEIGHT // 2 - 150, 500, 300)
         self.ui_manager.draw_glass_panel(self.screen, panel_rect, alpha=255)
-        self.ui_manager.draw_text(self.screen, "PAUZA", self.ui_manager.font_large, UI_GOLD, WIDTH // 2, panel_rect.y + 80, center=True)
-        self.ui_manager.draw_text(self.screen, "ESC - Pokračovať", self.ui_manager.font_medium, UI_TEXT_MAIN, WIDTH // 2, panel_rect.y + 160, center=True)
-        self.ui_manager.draw_text(self.screen, "Q - Späť do menu", self.ui_manager.font_medium, UI_TEXT_DIM, WIDTH // 2, panel_rect.y + 210, center=True)
+        self.ui_manager.draw_text(self.screen, "PAUZA", self.ui_manager.font_large, UI_GOLD, WIDTH // 2,
+        panel_rect.y + 80, center=True)
+        self.ui_manager.draw_text(self.screen, "ESC - Pokračovať", self.ui_manager.font_medium, UI_TEXT_MAIN,
+        WIDTH // 2, panel_rect.y + 160, center=True)
+        self.ui_manager.draw_text(self.screen, "Q - Späť do menu", self.ui_manager.font_medium, UI_TEXT_DIM, WIDTH // 2,
+        panel_rect.y + 210, center=True)
 
     def run(self):
         while self.running:
@@ -192,6 +213,21 @@ class Game:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.running = False
+
+                # OVLÁDANIE HLASITOSTI ŠÍPKAMI
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_m:
+                        self.audio.toggle_mute()
+                    elif event.key == pygame.K_UP:
+                        # Ak sme mali mute a zvyšujeme zvuk, vypneme mute
+                        if self.audio.muted: self.audio.toggle_mute()
+                        self.audio.change_volume(0.1)
+                    elif event.key == pygame.K_DOWN:
+                        self.audio.change_volume(-0.1)
+                        # Ak hlasitosť klesne na 0 (alebo menej), aktivuj MUTE
+                        if self.audio.engine_volume <= 0.01 and not self.audio.muted:
+                            self.audio.toggle_mute()
+
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     mouse_clicked = True
 
@@ -207,7 +243,9 @@ class Game:
                     self.handle_name_input(event)
 
             if self.state == GameState.MENU:
-                if self.ui_manager.draw_menu(self.screen, self.score_manager.get_highscores(), mouse_pos, mouse_clicked):
+                if self.ui_manager.draw_menu(self.screen, self.score_manager.get_highscores(), mouse_pos,
+                    mouse_clicked):
+                    self.audio.play_sfx('click')
                     self.reset_game()
                     self.state = GameState.PLAYING
 
@@ -222,12 +260,16 @@ class Game:
             elif self.state == GameState.GAME_OVER:
                 self.draw_game()
                 score = self.score_manager.get_current_score()
-                if self.ui_manager.draw_game_over_screen(self.screen, int(score), self.score_manager.is_highscore(score), mouse_pos, mouse_clicked):
+                if self.ui_manager.draw_game_over_screen(self.screen, int(score),
+                    self.score_manager.is_highscore(score), mouse_pos,
+                    mouse_clicked):
+                    self.audio.play_sfx('click')
                     self.state = GameState.MENU
 
             elif self.state == GameState.ENTERING_NAME:
                 self.draw_game()
-                self.ui_manager.draw_game_over_screen(self.screen, int(self.score_manager.get_current_score()), True, mouse_pos, False)
+                self.ui_manager.draw_game_over_screen(self.screen, int(self.score_manager.get_current_score()), True,
+                mouse_pos, False)
                 self.ui_manager.draw_name_input(self.screen, self.player_name)
 
             keys = pygame.key.get_pressed()

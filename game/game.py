@@ -9,14 +9,12 @@ from src.ui.ui_manager import UIManager
 
 MIN_OBSTACLE_GAP = 300
 
-
 class GameState:
     MENU = 0
     PLAYING = 1
     GAME_OVER = 2
     ENTERING_NAME = 3
     PAUSED = 4
-
 
 class Game:
     def __init__(self):
@@ -71,13 +69,8 @@ class Game:
                 return
 
         if random.randint(0, self.obstacle_spawn_rate) == 0:
-            # Vytvoríme novú prekážku
             new_obstacle = ObstacleCar(-OBSTACLE_HEIGHT)
-
-            # Vygenerujeme náhodný posun od stredu (vľavo, stred alebo vpravo)
-            # Rozsah ROAD_WIDTH // 3 zabezpečí, že auto zostane na asfalte
             new_obstacle.offset = random.randint(-ROAD_WIDTH // 3, ROAD_WIDTH // 3)
-
             self.obstacles.append(new_obstacle)
 
     def update_obstacles(self):
@@ -88,13 +81,11 @@ class Game:
         self.obstacles = [o for o in self.obstacles if o.y < HEIGHT + 200]
         after_count = len(self.obstacles)
 
-        # Body sa pripočítajú za autá, ktoré hráč úspešne prešiel
         passed = before_count - after_count
         if passed > 0:
-            self.score_manager.increment_score(passed)
+            self.score_manager.increment_score(passed * 10)
 
     def check_collisions(self):
-        # 1. Kontrola kolízie s krajnicou (trávou)
         center_at_player = self.road.get_center_at(self.player.y + PLAYER_HEIGHT // 2)
         left_edge = center_at_player - ROAD_WIDTH // 2
         right_edge = center_at_player + ROAD_WIDTH // 2
@@ -102,7 +93,6 @@ class Game:
         if self.player.x - PLAYER_WIDTH // 2 < left_edge or self.player.x + PLAYER_WIDTH // 2 > right_edge:
             return True
 
-        # 2. Kontrola kolízie s ostatnými formulami
         player_rect = pygame.Rect(
             self.player.x - PLAYER_WIDTH // 2,
             self.player.y,
@@ -111,7 +101,6 @@ class Game:
         )
 
         for o in self.obstacles:
-            # Pri kontrole kolízie musíme použiť rovnaký offset ako pri kreslení
             c = self.road.get_center_at(o.y + OBSTACLE_HEIGHT // 2) + o.offset
             obstacle_rect = pygame.Rect(
                 c - OBSTACLE_WIDTH // 2,
@@ -173,9 +162,7 @@ class Game:
         self.update_obstacles()
         self.update_difficulty()
 
-        # Malý bonus k skóre za čas prežitia
-        if pygame.time.get_ticks() % 10 == 0:
-            self.score_manager.increment_score(0.1)
+        self.score_manager.increment_score(self.current_speed / 100)
 
         if self.check_collisions():
             self.state = GameState.GAME_OVER
@@ -185,7 +172,6 @@ class Game:
         self.road.draw(self.screen)
 
         for o in self.obstacles:
-            # Vykreslenie prekážky s jej uloženým náhodným posunom
             c = self.road.get_center_at(o.y + OBSTACLE_HEIGHT // 2) + o.offset
             o.draw(self.screen, c)
 

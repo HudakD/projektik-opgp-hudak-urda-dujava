@@ -34,7 +34,6 @@ class ModernButton:
         )
         border_width = 2 if self.hover_progress < 0.5 else 3
         pygame.draw.rect(s, border_color, s.get_rect(), border_width, border_radius=12)
-
         screen.blit(s, self.rect.topleft)
 
         text_color = UI_TEXT_MAIN
@@ -50,8 +49,10 @@ class ModernButton:
 
         if self.hover_progress > 0.1:
             glow_rect = pygame.Rect(
-                self.rect.x - 5, self.rect.y - 5,
-                self.rect.width + 10, self.rect.height + 10
+                self.rect.x - 5,
+                self.rect.y - 5,
+                self.rect.width + 10,
+                self.rect.height + 10
             )
             pygame.draw.rect(screen, (*UI_ACCENT, int(30 * self.hover_progress)), glow_rect, 2, border_radius=15)
 
@@ -63,7 +64,8 @@ class UIManager:
     def __init__(self):
         pygame.font.init()
         self.font_title = pygame.font.SysFont("impact", 100)
-        if not self.font_title: self.font_title = pygame.font.Font(None, 100)
+        if not self.font_title:
+            self.font_title = pygame.font.Font(None, 100)
 
         self.font_large = pygame.font.Font(None, 60)
         self.font_medium = pygame.font.Font(None, 40)
@@ -127,8 +129,8 @@ class UIManager:
         self.draw_animated_bg(screen)
 
         scale = 1.0 + 0.03 * math.sin(self.time_tracker * 0.05)
-
         title_text = "F1 TURBO"
+
         shadow = self.font_title.render(title_text, True, (0, 0, 0))
         s_rect = shadow.get_rect(center=(WIDTH // 2 + 5, 125))
         screen.blit(shadow, s_rect)
@@ -161,7 +163,7 @@ class UIManager:
 
             y_off += 35
 
-        keys_info = "[ ŠÍPKY: POHYB ]   [ ESC: PAUZA ]"
+        keys_info = "[ ŠÍPKY: POHYB ] [ ESC: PAUZA ]"
         self.draw_text(screen, keys_info, self.font_tech, (80, 80, 100), WIDTH // 2, HEIGHT - 30, center=True)
 
         return self.start_button.is_clicked(mouse_pos, mouse_clicked)
@@ -187,41 +189,87 @@ class UIManager:
         pygame.draw.circle(screen, UI_WARNING, (level_rect.left - 20, 25), 5)
         pygame.draw.circle(screen, UI_WARNING, (level_rect.right + 20, 25), 5)
 
-        gauge_center = (WIDTH - 150, HEIGHT - 80)
-        radius = 60
+        self.draw_digital_tachometer(screen, speed)
 
-        bg_gauge_rect = pygame.Rect(WIDTH - 280, HEIGHT - 130, 260, 110)
-        s_gauge = pygame.Surface((260, 110), pygame.SRCALPHA)
-        pygame.draw.rect(s_gauge, (*UI_PANEL_BG, 200), s_gauge.get_rect(), border_radius=15)
-        pygame.draw.polygon(s_gauge, (*UI_PANEL_BG, 255), [(20, 0), (260, 0), (260, 110), (0, 110)])
-        screen.blit(s_gauge, bg_gauge_rect.topleft)
+    def draw_digital_tachometer(self, screen, speed):
+        panel_width = 200
+        panel_height = 140
+        panel_x = WIDTH - panel_width - 20
+        panel_y = 70
 
-        speed_ratio = min(speed / MAX_SCROLL_SPEED, 1.0)
+        panel_rect = pygame.Rect(panel_x, panel_y, panel_width, panel_height)
 
-        arc_rect = pygame.Rect(0, 0, 120, 120)
-        arc_rect.center = (WIDTH - 100, HEIGHT - 50)
+        s = pygame.Surface((panel_width, panel_height), pygame.SRCALPHA)
+        pygame.draw.rect(s, (*UI_PANEL_BG, 240), s.get_rect(), border_radius=10)
+        screen.blit(s, (panel_x, panel_y))
 
-        start_angle = math.pi
-        end_angle = 0
-        current_angle = start_angle - (speed_ratio * (start_angle - end_angle))
+        pygame.draw.rect(screen, UI_ACCENT, panel_rect, 2, border_radius=10)
 
-        pygame.draw.arc(screen, (50, 50, 60), arc_rect, 0, math.pi, 15)
+        corner_size = 15
+        corner_thickness = 3
+        corners = [
+            [(panel_x, panel_y), (panel_x + corner_size, panel_y)],
+            [(panel_x, panel_y), (panel_x, panel_y + corner_size)],
+            [(panel_x + panel_width, panel_y), (panel_x + panel_width - corner_size, panel_y)],
+            [(panel_x + panel_width, panel_y), (panel_x + panel_width, panel_y + corner_size)],
+            [(panel_x, panel_y + panel_height), (panel_x + corner_size, panel_y + panel_height)],
+            [(panel_x, panel_y + panel_height), (panel_x, panel_y + panel_height - corner_size)],
+            [(panel_x + panel_width, panel_y + panel_height),
+             (panel_x + panel_width - corner_size, panel_y + panel_height)],
+            [(panel_x + panel_width, panel_y + panel_height),
+             (panel_x + panel_width, panel_y + panel_height - corner_size)],
+        ]
 
-        color = UI_ACCENT
-        if speed_ratio > 0.7: color = (255, 180, 0)
-        if speed_ratio > 0.9: color = UI_WARNING
+        for corner in corners:
+            pygame.draw.line(screen, UI_ACCENT, corner[0], corner[1], corner_thickness)
 
-        if speed_ratio > 0.05:
-            pygame.draw.arc(screen, color, arc_rect, current_angle, math.pi, 15)
+        label_y = panel_y + 20
+        self.draw_text(screen, "SPEED", self.font_small, UI_TEXT_DIM, panel_x + panel_width // 2, label_y, center=True)
 
         speed_val = int(speed * 18)
-        speed_surf = self.font_title.render(str(speed_val), True, color)
-        speed_surf = pygame.transform.smoothscale(speed_surf, (int(speed_surf.get_width() * 0.6),
-                                                               int(speed_surf.get_height() * 0.6)))
-        s_rect = speed_surf.get_rect(center=(WIDTH - 100, HEIGHT - 65))
-        screen.blit(speed_surf, s_rect)
+        speed_ratio = min(speed / MAX_SCROLL_SPEED, 1.0)
 
-        self.draw_text(screen, "KM/H", self.font_small, UI_TEXT_DIM, WIDTH - 100, HEIGHT - 35, center=True)
+        if speed_ratio < 0.5:
+            color = GAUGE_LOW
+        elif speed_ratio < 0.8:
+            color = GAUGE_MID
+        else:
+            color = GAUGE_HIGH
+
+        speed_font = pygame.font.Font(None, 70)
+        speed_text = str(speed_val)
+
+        for offset_x in range(-2, 3):
+            for offset_y in range(-2, 3):
+                if offset_x != 0 or offset_y != 0:
+                    glow = speed_font.render(speed_text, True, color)
+                    glow.set_alpha(20)
+                    glow_rect = glow.get_rect(center=(panel_x + panel_width // 2 + offset_x, panel_y + 70 + offset_y))
+                    screen.blit(glow, glow_rect)
+
+        speed_surf = speed_font.render(speed_text, True, (255, 255, 255))
+        speed_rect = speed_surf.get_rect(center=(panel_x + panel_width // 2, panel_y + 70))
+        screen.blit(speed_surf, speed_rect)
+
+        unit_y = panel_y + 105
+        self.draw_text(screen, "KM/H", self.font_tech, UI_TEXT_DIM, panel_x + panel_width // 2, unit_y, center=True)
+
+        bar_width = panel_width - 40
+        bar_height = 6
+        bar_x = panel_x + 20
+        bar_y = panel_y + panel_height - 20
+
+        pygame.draw.rect(screen, (30, 30, 40), (bar_x, bar_y, bar_width, bar_height), border_radius=3)
+
+        filled_width = int(bar_width * speed_ratio)
+        if filled_width > 0:
+            pygame.draw.rect(screen, color, (bar_x, bar_y, filled_width, bar_height), border_radius=3)
+
+            for i in range(0, filled_width, 2):
+                pulse_alpha = int(50 + 50 * math.sin(self.time_tracker * 0.1 + i * 0.1))
+                pulse_surf = pygame.Surface((2, bar_height), pygame.SRCALPHA)
+                pulse_surf.fill((*color, pulse_alpha))
+                screen.blit(pulse_surf, (bar_x + i, bar_y))
 
     def draw_game_over_screen(self, screen, score, is_highscore, mouse_pos, mouse_clicked):
         overlay = pygame.Surface((WIDTH, HEIGHT))
@@ -229,7 +277,12 @@ class UIManager:
         overlay.fill((5, 5, 10))
         screen.blit(overlay, (0, 0))
 
-        panel_rect = pygame.Rect(WIDTH // 2 - 300, HEIGHT // 2 - 200, 600, 400)
+        panel_width = 600
+        panel_height = 400
+        panel_x = WIDTH // 2 - panel_width // 2
+        panel_y = HEIGHT // 2 - panel_height // 2
+
+        panel_rect = pygame.Rect(panel_x, panel_y, panel_width, panel_height)
 
         glow_rect = panel_rect.copy()
         glow_rect.inflate_ip(20, 20)
@@ -240,18 +293,18 @@ class UIManager:
         title = "MISSION FAILED" if not is_highscore else "NEW RECORD!"
         color = UI_WARNING if not is_highscore else UI_GOLD
 
-        self.draw_glowing_text(screen, title, self.font_large, color, (WIDTH // 2, panel_rect.y + 60))
+        self.draw_glowing_text(screen, title, self.font_large, color, (WIDTH // 2, panel_y + 60))
 
-        pygame.draw.rect(screen, (0, 0, 0), (WIDTH // 2 - 150, panel_rect.y + 120, 300, 80), border_radius=10)
-        pygame.draw.rect(screen, color, (WIDTH // 2 - 150, panel_rect.y + 120, 300, 80), 2, border_radius=10)
+        pygame.draw.rect(screen, (0, 0, 0), (WIDTH // 2 - 150, panel_y + 120, 300, 80), border_radius=10)
+        pygame.draw.rect(screen, color, (WIDTH // 2 - 150, panel_y + 120, 300, 80), 2, border_radius=10)
 
-        self.draw_text(screen, "FINAL SCORE", self.font_small, UI_TEXT_DIM, WIDTH // 2, panel_rect.y + 135, center=True)
-        self.draw_text(screen, str(int(score)), self.font_large, (255, 255, 255), WIDTH // 2, panel_rect.y + 170,
+        self.draw_text(screen, "FINAL SCORE", self.font_small, UI_TEXT_DIM, WIDTH // 2, panel_y + 135, center=True)
+        self.draw_text(screen, str(int(score)), self.font_large, (255, 255, 255), WIDTH // 2, panel_y + 170,
                        center=True)
 
         if is_highscore:
-            self.draw_text(screen, "Zadaj meno a stlač ENTER", self.font_small, UI_ACCENT, WIDTH // 2,
-                           panel_rect.y + 250, center=True)
+            self.draw_text(screen, "Zadaj meno a stlač ENTER", self.font_small, UI_ACCENT, WIDTH // 2, panel_y + 225,
+                           center=True)
         else:
             self.continue_button.update(mouse_pos)
             self.continue_button.draw(screen)
@@ -265,7 +318,6 @@ class UIManager:
         pygame.draw.rect(screen, UI_ACCENT, input_rect, 2, border_radius=5)
 
         cursor = "_" if (pygame.time.get_ticks() // 500) % 2 == 0 else ""
-
         txt_surf = self.font_medium.render(name + cursor, True, UI_TEXT_MAIN)
         screen.blit(txt_surf, (input_rect.x + 20, input_rect.y + 15))
 

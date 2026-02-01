@@ -2,7 +2,6 @@ import os
 from src.settings import SCORE_FILE, MAX_HIGHSCORES
 
 class ScoreManager:
-
     def __init__(self):
         self.current_score = 0
         self.highscores = self.load_highscores()
@@ -19,7 +18,7 @@ class ScoreManager:
                     if line:
                         name, score = line.split(',')
                         scores.append({'name': name, 'score': int(float(score))})
-                return scores
+                return sorted(scores, key=lambda x: x['score'], reverse=True)
         except Exception as e:
             print(f"Chyba pri načítaní skóre: {e}")
             return []
@@ -33,13 +32,15 @@ class ScoreManager:
             print(f"Chyba pri ukladaní skóre: {e}")
 
     def add_score(self, name, score):
-        self.highscores.append({'name': name, 'score': score})
+        self.highscores.append({'name': name, 'score': int(score)})
+        # Zoradenie (od najlepšieho)
         self.highscores.sort(key=lambda x: x['score'], reverse=True)
-        self.highscores = self.highscores[:MAX_HIGHSCORES]
+        # Orezanie na 20 najlepších (alebo podľa MAX_HIGHSCORES)
+        self.highscores = self.highscores[:20]
         self.save_highscores()
 
     def is_highscore(self, score):
-        if len(self.highscores) < MAX_HIGHSCORES:
+        if len(self.highscores) < 20:
             return True
         return score > self.highscores[-1]['score']
 

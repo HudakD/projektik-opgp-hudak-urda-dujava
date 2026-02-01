@@ -57,7 +57,6 @@ class Game:
 
     def update_difficulty(self):
         score = self.score_manager.get_current_score()
-
         if score >= self.last_difficulty_score + DIFFICULTY_INCREASE_INTERVAL:
             self.increase_difficulty()
             self.last_difficulty_score = score
@@ -155,13 +154,11 @@ class Game:
 
     def update_game(self):
         keys = pygame.key.get_pressed()
-
         self.player.update(keys)
         self.road.update(self.current_speed)
         self.spawn_obstacle()
         self.update_obstacles()
         self.update_difficulty()
-
         self.score_manager.increment_score(self.current_speed / 100)
 
         if self.check_collisions():
@@ -170,47 +167,31 @@ class Game:
     def draw_game(self):
         self.screen.fill(GRASS_COLOR)
         self.road.draw(self.screen)
-
         for o in self.obstacles:
             c = self.road.get_center_at(o.y + OBSTACLE_HEIGHT // 2) + o.offset
             o.draw(self.screen, c)
-
         self.player.draw(self.screen)
-
         self.ui_manager.draw_hud(self.screen, int(self.score_manager.get_current_score()), self.current_speed)
 
     def draw_pause_screen(self):
         overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
         overlay.fill((10, 10, 15, 200))
         self.screen.blit(overlay, (0, 0))
-
-        panel_width = 500
-        panel_height = 300
-        panel_x = WIDTH // 2 - panel_width // 2
-        panel_y = HEIGHT // 2 - panel_height // 2
-        panel_rect = pygame.Rect(panel_x, panel_y, panel_width, panel_height)
-
+        panel_rect = pygame.Rect(WIDTH // 2 - 250, HEIGHT // 2 - 150, 500, 300)
         self.ui_manager.draw_glass_panel(self.screen, panel_rect, alpha=255)
-
-        self.ui_manager.draw_text(self.screen, "PAUZA", self.ui_manager.font_large,
-            UI_GOLD, WIDTH // 2, panel_y + 80, center=True)
-
-        self.ui_manager.draw_text(self.screen, "ESC - Pokračovať", self.ui_manager.font_medium,
-            UI_TEXT_MAIN, WIDTH // 2, panel_y + 160, center=True)
-        self.ui_manager.draw_text(self.screen, "Q - Späť do menu", self.ui_manager.font_medium,
-            UI_TEXT_DIM, WIDTH // 2, panel_y + 210, center=True)
+        self.ui_manager.draw_text(self.screen, "PAUZA", self.ui_manager.font_large, UI_GOLD, WIDTH // 2, panel_rect.y + 80, center=True)
+        self.ui_manager.draw_text(self.screen, "ESC - Pokračovať", self.ui_manager.font_medium, UI_TEXT_MAIN, WIDTH // 2, panel_rect.y + 160, center=True)
+        self.ui_manager.draw_text(self.screen, "Q - Späť do menu", self.ui_manager.font_medium, UI_TEXT_DIM, WIDTH // 2, panel_rect.y + 210, center=True)
 
     def run(self):
         while self.running:
             self.clock.tick(FPS)
-
             mouse_pos = pygame.mouse.get_pos()
             mouse_clicked = False
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.running = False
-
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     mouse_clicked = True
 
@@ -226,8 +207,7 @@ class Game:
                     self.handle_name_input(event)
 
             if self.state == GameState.MENU:
-                if self.ui_manager.draw_menu(self.screen, self.score_manager.get_highscores(), mouse_pos,
-                    mouse_clicked):
+                if self.ui_manager.draw_menu(self.screen, self.score_manager.get_highscores(), mouse_pos, mouse_clicked):
                     self.reset_game()
                     self.state = GameState.PLAYING
 
@@ -242,16 +222,17 @@ class Game:
             elif self.state == GameState.GAME_OVER:
                 self.draw_game()
                 score = self.score_manager.get_current_score()
-                is_highscore = self.score_manager.is_highscore(score)
-                if self.ui_manager.draw_game_over_screen(self.screen, int(score), is_highscore, mouse_pos,
-                    mouse_clicked):
+                if self.ui_manager.draw_game_over_screen(self.screen, int(score), self.score_manager.is_highscore(score), mouse_pos, mouse_clicked):
                     self.state = GameState.MENU
 
             elif self.state == GameState.ENTERING_NAME:
                 self.draw_game()
-                score = self.score_manager.get_current_score()
-                self.ui_manager.draw_game_over_screen(self.screen, int(score), True, mouse_pos, False)
+                self.ui_manager.draw_game_over_screen(self.screen, int(self.score_manager.get_current_score()), True, mouse_pos, False)
                 self.ui_manager.draw_name_input(self.screen, self.player_name)
+
+            keys = pygame.key.get_pressed()
+            if keys[pygame.K_TAB]:
+                self.ui_manager.draw_leaderboard(self.screen, self.score_manager.get_highscores())
 
             pygame.display.flip()
 

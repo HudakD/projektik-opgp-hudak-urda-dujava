@@ -116,7 +116,6 @@ class UIManager:
         offset = (self.time_tracker * 0.5) % grid_spacing
 
         for x in range(0, WIDTH, grid_spacing):
-            alpha = int(20 + 10 * math.sin((x + self.time_tracker) * 0.01))
             pygame.draw.line(screen, (40, 40, 60), (x, 0), (x, HEIGHT))
 
         for y in range(-grid_spacing, HEIGHT, grid_spacing):
@@ -128,7 +127,6 @@ class UIManager:
     def draw_menu(self, screen, highscores, mouse_pos, mouse_clicked):
         self.draw_animated_bg(screen)
 
-        scale = 1.0 + 0.03 * math.sin(self.time_tracker * 0.05)
         title_text = "F1 TURBO"
 
         shadow = self.font_title.render(title_text, True, (0, 0, 0))
@@ -163,10 +161,33 @@ class UIManager:
 
             y_off += 35
 
-        keys_info = "[ ŠÍPKY: POHYB ] [ ESC: PAUZA ]"
+        keys_info = "[ TAB: TOP 20 ] [ ŠÍPKY: POHYB ] [ ESC: PAUZA ]"
         self.draw_text(screen, keys_info, self.font_tech, (80, 80, 100), WIDTH // 2, HEIGHT - 30, center=True)
 
         return self.start_button.is_clicked(mouse_pos, mouse_clicked)
+
+    def draw_leaderboard(self, screen, highscores):
+        """Pridaná metóda pre TAB tabuľku (nezmenila nič na zvyšnom UI)"""
+        overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 215))
+        screen.blit(overlay, (0, 0))
+
+        panel_rect = pygame.Rect(WIDTH // 2 - 250, HEIGHT // 2 - 340, 500, 680)
+        self.draw_glass_panel(screen, panel_rect, alpha=245)
+        self.draw_glowing_text(screen, "TOP 20 REKORDOV", self.font_medium, UI_GOLD, (WIDTH // 2, panel_rect.y + 45))
+
+        y_off = panel_rect.y + 110
+        for i, entry in enumerate(highscores[:20]):
+            color = UI_GOLD if i == 0 else UI_TEXT_MAIN
+            if i % 2 == 0:
+                s = pygame.Surface((panel_rect.width - 40, 24), pygame.SRCALPHA)
+                s.fill((255, 255, 255, 10))
+                screen.blit(s, (panel_rect.x + 20, y_off - 2))
+            self.draw_text(screen, f"{i + 1}.", self.font_small, color, panel_rect.x + 40, y_off)
+            self.draw_text(screen, entry['name'][:15], self.font_small, UI_TEXT_MAIN, panel_rect.x + 100, y_off)
+            self.draw_text(screen, f"{int(entry['score']):06d}", self.font_tech, UI_ACCENT, panel_rect.right - 120,
+                           y_off)
+            y_off += 27
 
     def draw_hud(self, screen, score, speed):
         top_bar_height = 50

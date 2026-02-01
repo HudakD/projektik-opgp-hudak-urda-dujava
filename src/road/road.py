@@ -21,6 +21,8 @@ class Road:
         self.target_center = WIDTH // 2
         self.curve_timer = 0
         self.curve_duration = 100
+        self.max_turn_distance = 150
+        self.line_offset = 0
         self._init_segments()
 
     def _init_segments(self):
@@ -32,18 +34,19 @@ class Road:
     def update(self, scroll_speed):
         for seg in self.segments:
             seg.y += scroll_speed
-
         self.curve_timer -= 1
+        self.line_offset += scroll_speed
         if self.curve_timer <= 0:
-            margin = ROAD_WIDTH // 2 + 50
+            margin = int(ROAD_WIDTH // 2 + 70)
             self.start_center = self.center
-            self.target_center = random.randint(margin, WIDTH - margin)
-            self.curve_duration = random.randint(80, 160)
+            min_target = int(max(margin, self.center - self.max_turn_distance))
+            max_target = int(min(WIDTH - margin, self.center + self.max_turn_distance))
+            self.target_center = random.randint(min_target, max_target)
+            self.curve_duration = random.randint(100, 200)
             self.curve_timer = self.curve_duration
 
         t = 1.0 - (self.curve_timer / self.curve_duration)
         eased_t = t * t * (3 - 2 * t)
-
         self.center = self.start_center + (self.target_center - self.start_center) * eased_t
 
         while self.segments and self.segments[0].y > HEIGHT + SEGMENT_HEIGHT:
@@ -66,7 +69,16 @@ class Road:
                 )
                 pygame.draw.rect(screen, ROAD_COLOR, road_rect)
 
-                if i % 4 < 2:
+                line_width = 8
+                pygame.draw.rect(screen, WHITE, (seg.center - ROAD_WIDTH // 2, seg.y, line_width, SEGMENT_HEIGHT))
+                pygame.draw.rect(screen, WHITE,
+                                 (seg.center + ROAD_WIDTH // 2 - line_width, seg.y, line_width, SEGMENT_HEIGHT))
+
+                dash_length = 40
+                gap_length = 40
+                cycle = dash_length + gap_length
+
+                if ((seg.y - self.line_offset) % cycle) < dash_length:
                     line_rect = pygame.Rect(
                         seg.center - 3,
                         seg.y,

@@ -76,11 +76,13 @@ class UIManager:
         btn_height = 65
         center_x = WIDTH // 2 - btn_width // 2
 
-        self.start_button = ModernButton(center_x, 340, btn_width, btn_height, "ŠTART PRETEKOV", self.font_medium)
-        self.host_button = ModernButton(center_x, 420, btn_width, btn_height, "HOST GAME", self.font_medium)
+        self.start_button = ModernButton(center_x, 320, btn_width, btn_height, "ŠTART PRETEKOV", self.font_medium)
+        self.host_button = ModernButton(center_x, 410, btn_width, btn_height, "HOST GAME", self.font_medium)
         self.join_button = ModernButton(center_x, 500, btn_width, btn_height, "JOIN GAME", self.font_medium)
         self.continue_button = ModernButton(center_x, HEIGHT // 2 + 80, btn_width, btn_height, "POKRAČOVAŤ",
                                             self.font_medium)
+        self.setup_join_button = ModernButton(center_x, HEIGHT // 2 + 40, btn_width, 60, "PRIPOJIŤ SA", self.font_medium)
+        self.setup_back_button = ModernButton(center_x, HEIGHT // 2 + 110, btn_width, 60, "SPÄŤ", self.font_medium)
 
         self.time_tracker = 0
 
@@ -181,24 +183,43 @@ class UIManager:
             return "join"
         return None
 
-    def draw_multiplayer_setup(self, screen, title, prompt, current_text):
+    def draw_multiplayer_setup(self, screen, title, prompt, current_text, mouse_pos, mouse_clicked):
         overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 220))
         screen.blit(overlay, (0, 0))
 
-        panel_rect = pygame.Rect(WIDTH // 2 - 360, HEIGHT // 2 - 180, 720, 360)
+        panel_rect = pygame.Rect(WIDTH // 2 - 360, HEIGHT // 2 - 180, 720, 500)
         self.draw_glass_panel(screen, panel_rect, alpha=235)
 
         self.draw_text(screen, title, self.font_large, UI_ACCENT, WIDTH // 2, panel_rect.y + 70, center=True)
         self.draw_text(screen, prompt, self.font_medium, UI_TEXT_MAIN, WIDTH // 2, panel_rect.y + 150, center=True)
+        self.draw_text(screen, "Podpora formátu: 192.168.0.100 alebo 10.0.0.5", self.font_small, UI_TEXT_DIM,
+                       WIDTH // 2, panel_rect.y + 190, center=True)
 
-        input_rect = pygame.Rect(WIDTH // 2 - 260, panel_rect.y + 190, 520, 60)
+        input_rect = pygame.Rect(WIDTH // 2 - 260, panel_rect.y + 220, 520, 60)
         pygame.draw.rect(screen, (0, 0, 0), input_rect, border_radius=10)
-        pygame.draw.rect(screen, UI_ACCENT, input_rect, 2, border_radius=10)
+        pygame.draw.rect(screen, UI_ACCENT, input_rect, 3, border_radius=10)
 
         cursor = "_" if (pygame.time.get_ticks() // 500) % 2 == 0 else ""
-        text_surf = self.font_medium.render(current_text + cursor, True, UI_TEXT_MAIN)
+        displayed = current_text if len(current_text) > 0 else "IP hostiteľa..."
+        text_color = UI_TEXT_MAIN if len(current_text) > 0 else UI_TEXT_DIM
+        text_surf = self.font_medium.render(displayed + cursor, True, text_color)
         screen.blit(text_surf, (input_rect.x + 20, input_rect.y + 15))
+
+        # Position buttons below the input field
+        self.setup_join_button.rect.center = (WIDTH // 2, input_rect.y + 80 + 30)
+        self.setup_back_button.rect.center = (WIDTH // 2, input_rect.y + 150 + 30)
+
+        self.setup_join_button.update(mouse_pos)
+        self.setup_join_button.draw(screen)
+        self.setup_back_button.update(mouse_pos)
+        self.setup_back_button.draw(screen)
+
+        if self.setup_join_button.is_clicked(mouse_pos, mouse_clicked):
+            return "join"
+        if self.setup_back_button.is_clicked(mouse_pos, mouse_clicked):
+            return "back"
+        return None
 
     def draw_connection_status(self, screen, title, status, details=None):
         overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)

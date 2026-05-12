@@ -186,7 +186,7 @@ class Game:
 
     def handle_join_input(self, event):
         if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_RETURN and len(self.join_ip) > 0:
+            if event.key in (pygame.K_RETURN, pygame.K_KP_ENTER) and len(self.join_ip) > 0:
                 self.audio.play_sfx('click')
                 self.network = ClientPeer(self.join_ip, MULTIPLAYER_PORT)
                 self.network.connect()
@@ -563,8 +563,21 @@ class Game:
 
             elif self.state == GameState.MP_CLIENT_SETUP:
                 self.screen.fill(GRASS_COLOR)
-                self.ui_manager.draw_multiplayer_setup(self.screen, "JOIN GAME",
-                                                       "Zadaj IP hostiteľa a stlač ENTER:", self.join_ip)
+                action = self.ui_manager.draw_multiplayer_setup(self.screen, "JOIN GAME",
+                                                               "Zadaj IP hostiteľa a stlač ENTER:", self.join_ip,
+                                                               mouse_pos, mouse_clicked)
+                if action == "join" and len(self.join_ip) > 0:
+                    self.audio.play_sfx('click')
+                    self.network = ClientPeer(self.join_ip, MULTIPLAYER_PORT)
+                    self.network.connect()
+                    if self.network.is_connected():
+                        self.connection_message = f"Pripojené na {self.join_ip}:{MULTIPLAYER_PORT}. Čakám na hostiteľa..."
+                        self.network.send_packet({"type": PacketType.HELLO, "role": "client"})
+                        self.state = GameState.MP_WAITING
+                    else:
+                        self.connection_message = "Nepodarilo sa pripojiť. Skontroluj IP a skúšaj znova."
+                elif action == "back":
+                    self.state = GameState.MENU
 
             elif self.state == GameState.MP_WAITING:
                 self.screen.fill(GRASS_COLOR)

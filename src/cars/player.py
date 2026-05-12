@@ -2,21 +2,29 @@ import pygame
 from src.settings import *
 
 class Player:
-    def __init__(self, x, y):
+    def __init__(self, x, y, color=PLAYER_COLOR):
         self.x = x
         self.y = y
         self.speed = 8
+        self.color = color
 
-    def update(self, keys):
-        if keys[pygame.K_LEFT]:
-            self.x -= self.speed
-        if keys[pygame.K_RIGHT]:
-            self.x += self.speed
+    def update(self, keys=None, left=False, right=False):
+        if keys is not None:
+            if keys[pygame.K_LEFT]:
+                self.x -= self.speed
+            if keys[pygame.K_RIGHT]:
+                self.x += self.speed
+        else:
+            if left:
+                self.x -= self.speed
+            if right:
+                self.x += self.speed
         self.x = max(PLAYER_WIDTH // 2, min(WIDTH - PLAYER_WIDTH // 2, self.x))
 
     def draw(self, screen):
         x, y = self.x, self.y
         w, h = PLAYER_WIDTH, PLAYER_HEIGHT
+        color = self.color
 
         # 1. Zadné kolesá (väčšie, dole)
         pygame.draw.rect(screen, (20, 20, 20), (x - w//2 - 5, y + h - 35, 16, 25))
@@ -24,9 +32,9 @@ class Player:
 
         # 2. Telo (zužujúce sa smerom hore)
         # Hlavný trup
-        pygame.draw.rect(screen, (200, 0, 0), (x - w//4, y + 15, w//2, h - 25))
+        pygame.draw.rect(screen, color, (x - w//4, y + 15, w//2, h - 25))
         # Nos formuly
-        pygame.draw.polygon(screen, (255, 0, 0), [
+        pygame.draw.polygon(screen, color, [
             (x - w//4, y + 15), (x + w//4, y + 15), (x, y)
         ])
 

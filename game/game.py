@@ -1,5 +1,6 @@
-import pygame
+﻿import pygame
 import random
+import socket
 from src.settings import *
 from src.road.road import Road
 from src.cars.player import Player
@@ -7,8 +8,15 @@ from src.cars.obstacle import ObstacleCar
 from src.score.score_manager import ScoreManager
 from src.ui.ui_manager import UIManager
 from src.audio.audio_manager import AudioManager
+from src.network import PacketType, HostServer, ClientPeer
 
 MIN_OBSTACLE_GAP = 300
+
+
+class GameMode:
+    SINGLEPLAYER = 0
+    HOST = 1
+    CLIENT = 2
 
 
 class GameState:
@@ -17,6 +25,9 @@ class GameState:
     GAME_OVER = 2
     ENTERING_NAME = 3
     PAUSED = 4
+    MP_CLIENT_SETUP = 5
+    MP_WAITING = 6
+    MP_RESULT = 7
 
 
 class Game:
@@ -32,25 +43,73 @@ class Game:
         self.audio = AudioManager()
 
         self.state = GameState.MENU
+        self.mode = GameMode.SINGLEPLAYER
         self.player_name = ""
 
         self.road = None
         self.player = None
+        self.players = []
         self.obstacles = []
 
         self.current_speed = INITIAL_SCROLL_SPEED
         self.obstacle_spawn_rate = 8
         self.last_difficulty_score = 0
 
-    def reset_game(self):
-        self.road = Road()
-        self.player = Player(WIDTH // 2, HEIGHT - 130)
+        self.network = None
+        self.network_seed = None
+        self.local_player_index = 0
+        self.remote_input = {"left": False, "right": False, "frame": 0}
+        self.local_input = {"left": False, "right": False, "frame": 0}
+        self.frame_count = 0
+        self.join_ip = ""
+        self.connection_message = ""
+        self.multiplayer_result_text = ""
+        self.connection_lost = False
+        self.local_crashed = False
+        self.remote_crashed = False
+        self.multiplayer_crash_sent = False
+        self.host_setup_sent = False
+        self.host_setup_sent = False
+        self.host_setup_sent = False
+
+    def get_local_ip(self):
+        try:
+            hostname = socket.gethostname()
+            local_ip = socket.gethostbyname(hostname)
+            if local_ip.startswith("127."):
+                raise ValueError
+            return local_ip
+        except Exception:
+            return "127.0.0.1"
+
+    def reset_game(self, seed=None, multiplayer=False):
+        if multiplayer:
+            self.network_seed = seed if seed is not None else random.randint(0, 2**31 - 1)
+            self.rng = random.Random(self.network_seed)
+            self.road = Road(self.rng)
+            self.players = [
+                Player(WIDTH // 2, HEIGHT - 130, color=PLAYER_COLOR),
+                Player(WIDTH // 2, HEIGHT - 130, color=OBSTACLE_COLOR)
+            ]
+            self.player = self.players[self.local_player_index]
+        else:
+            self.rng = random.Random()
+            self.road = Road(self.rng)
+            self.player = Player(WIDTH // 2, HEIGHT - 130)
+            self.players = [self.player]
+
         self.obstacles = []
         self.score_manager.reset_score()
         self.current_speed = INITIAL_SCROLL_SPEED
         self.obstacle_spawn_rate = 8
         self.last_difficulty_score = 0
         self.player_name = ""
+        self.frame_count = 0
+        self.local_input = {"left": False, "right": False, "frame": 0}
+        self.remote_input = {"left": False, "right": False, "frame": 0}
+        self.local_crashed = False
+        self.remote_crashed = False
+        self.multiplayer_crash_sent = False
         self.audio.start_engine()
 
     def increase_difficulty(self):
@@ -72,9 +131,9 @@ class Game:
             if highest > -MIN_OBSTACLE_GAP:
                 return
 
-        if random.randint(0, self.obstacle_spawn_rate) == 0:
+        if self.rng.randint(0, self.obstacle_spawn_rate) == 0:
             new_obstacle = ObstacleCar(-OBSTACLE_HEIGHT)
-            new_obstacle.offset = random.randint(-ROAD_WIDTH // 3, ROAD_WIDTH // 3)
+            new_obstacle.offset = self.rng.randint(-ROAD_WIDTH // 3, ROAD_WIDTH // 3)
             self.obstacles.append(new_obstacle)
 
     def update_obstacles(self):
@@ -89,17 +148,17 @@ class Game:
         if passed > 0:
             self.score_manager.increment_score(passed * 10)
 
-    def check_collisions(self):
-        center_at_player = self.road.get_center_at(self.player.y + PLAYER_HEIGHT // 2)
+    def check_collisions(self, player):
+        center_at_player = self.road.get_center_at(player.y + PLAYER_HEIGHT // 2)
         left_edge = center_at_player - ROAD_WIDTH // 2
         right_edge = center_at_player + ROAD_WIDTH // 2
 
-        if self.player.x - PLAYER_WIDTH // 2 < left_edge or self.player.x + PLAYER_WIDTH // 2 > right_edge:
+        if player.x - PLAYER_WIDTH // 2 < left_edge or player.x + PLAYER_WIDTH // 2 > right_edge:
             return True
 
         player_rect = pygame.Rect(
-            self.player.x - PLAYER_WIDTH // 2,
-            self.player.y,
+            player.x - PLAYER_WIDTH // 2,
+            player.y,
             PLAYER_WIDTH,
             PLAYER_HEIGHT
         )
@@ -121,8 +180,27 @@ class Game:
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE:
                 self.audio.play_sfx('click')
+                self.mode = GameMode.SINGLEPLAYER
                 self.reset_game()
                 self.state = GameState.PLAYING
+
+    def handle_join_input(self, event):
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_RETURN and len(self.join_ip) > 0:
+                self.audio.play_sfx('click')
+                self.network = ClientPeer(self.join_ip, MULTIPLAYER_PORT)
+                self.network.connect()
+                if self.network.is_connected():
+                    self.connection_message = f"Pripojené na {self.join_ip}:{MULTIPLAYER_PORT}. Čakám na hostiteľa..."
+                    self.network.send_packet({"type": PacketType.HELLO, "role": "client"})
+                    self.state = GameState.MP_WAITING
+                else:
+                    self.connection_message = "Nepodarilo sa pripojiť. Skontroluj IP a skúšaj znova."
+            elif event.key == pygame.K_BACKSPACE:
+                self.join_ip = self.join_ip[:-1]
+            elif len(self.join_ip) < 22:
+                if event.unicode.isdigit() or event.unicode == '.' or event.unicode == ':':
+                    self.join_ip += event.unicode
 
     def handle_playing_input(self, event):
         if event.type == pygame.KEYDOWN:
@@ -136,6 +214,7 @@ class Game:
                 self.state = GameState.PLAYING
             elif event.key == pygame.K_q:
                 self.audio.stop_engine()
+                self.cleanup_network()
                 self.state = GameState.MENU
 
     def handle_game_over_input(self, event, mouse_pos, mouse_clicked):
@@ -152,6 +231,14 @@ class Game:
                 self.audio.play_sfx('click')
                 self.state = GameState.MENU
 
+    def handle_multiplayer_result_input(self, event):
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_r:
+                self.request_rematch()
+            elif event.key == pygame.K_ESCAPE:
+                self.cleanup_network()
+                self.state = GameState.MENU
+
     def handle_name_input(self, event):
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_RETURN and len(self.player_name) > 0:
@@ -159,14 +246,165 @@ class Game:
                 self.score_manager.add_score(self.player_name, self.score_manager.get_current_score())
                 self.state = GameState.MENU
             elif event.key == pygame.K_BACKSPACE:
-                if len(self.player_name) > 0: self.audio.play_sfx('click')
+                if len(self.player_name) > 0:
+                    self.audio.play_sfx('click')
                 self.player_name = self.player_name[:-1]
             elif len(self.player_name) < 15:
                 if event.unicode.isalnum() or event.unicode == ' ':
                     self.audio.play_sfx('click')
                     self.player_name += event.unicode
 
-    def update_game(self):
+    def start_host_session(self):
+        self.mode = GameMode.HOST
+        self.local_player_index = 0
+        self.network = HostServer(port=MULTIPLAYER_PORT)
+        self.network.start()
+        self.connection_message = f"Čakám na hráča...\nIP: {self.get_local_ip()}:{MULTIPLAYER_PORT}"
+        self.state = GameState.MP_WAITING
+        self.reset_game(seed=random.randint(0, 2**31 - 1), multiplayer=True)
+        self.host_setup_sent = False
+
+    def send_setup(self):
+        if self.network and self.mode == GameMode.HOST and self.network.is_connected():
+            packet = {"type": PacketType.SETUP, "seed": self.network_seed}
+            self.network.send_packet(packet)
+            self.host_setup_sent = True
+
+    def send_start(self):
+        if self.network and self.network.is_connected():
+            packet = {"type": PacketType.START}
+            self.network.send_packet(packet)
+
+    def send_input(self, left, right):
+        if self.network and self.network.is_connected():
+            packet = {
+                "type": PacketType.INPUT,
+                "frame": self.frame_count,
+                "player": self.local_player_index,
+                "left": left,
+                "right": right
+            }
+            self.network.send_packet(packet)
+
+    def send_crash(self, player_index):
+        if self.network and self.network.is_connected() and not self.multiplayer_crash_sent:
+            packet = {"type": PacketType.CRASH, "player": player_index, "frame": self.frame_count}
+            self.network.send_packet(packet)
+            self.multiplayer_crash_sent = True
+
+    def send_result(self, outcome):
+        if self.network and self.network.is_connected():
+            packet = {"type": PacketType.RESULT, "outcome": outcome}
+            self.network.send_packet(packet)
+
+    def send_rematch_response(self):
+        if self.network and self.network.is_connected():
+            packet = {"type": PacketType.REMATCH_RESPONSE}
+            self.network.send_packet(packet)
+
+    def request_rematch(self):
+        if self.network and self.network.is_connected():
+            packet = {"type": PacketType.REMATCH_REQUEST}
+            self.network.send_packet(packet)
+            self.connection_message = "Žiadosť o rematch odoslaná. Čakám..."
+            self.state = GameState.MP_WAITING
+
+    def cleanup_network(self):
+        if self.network:
+            try:
+                self.network.send_packet({"type": PacketType.DISCONNECT})
+            except Exception:
+                pass
+            self.network.stop()
+        self.network = None
+        self.connection_message = ""
+        self.connection_lost = False
+
+    def process_network_messages(self):
+        if not self.network:
+            return
+
+        packets = self.network.get_packets()
+        for packet in packets:
+            if not isinstance(packet, dict) or "type" not in packet:
+                continue
+            if self.mode == GameMode.HOST:
+                self.handle_host_packet(packet)
+            else:
+                self.handle_client_packet(packet)
+
+    def handle_host_packet(self, packet):
+        packet_type = packet["type"]
+
+        if packet_type == PacketType.HELLO:
+            self.connection_message = "Hráč sa pripojil. Čakám na READY..."
+            if not self.host_setup_sent:
+                self.send_setup()
+        elif packet_type == PacketType.READY:
+            self.connection_message = "Hráč je pripravený. Štartujem..."
+            self.send_start()
+            self.state = GameState.PLAYING
+            self.frame_count = 0
+        elif packet_type == PacketType.INPUT:
+            if packet.get("player") == 1:
+                self.remote_input["left"] = packet.get("left", False)
+                self.remote_input["right"] = packet.get("right", False)
+                self.remote_input["frame"] = packet.get("frame", self.frame_count)
+        elif packet_type == PacketType.CRASH:
+            self.remote_crashed = True
+            if self.local_crashed and packet.get("frame") == self.frame_count:
+                self.multiplayer_result_text = "DRAW"
+                self.send_result("DRAW")
+                self.state = GameState.MP_RESULT
+            elif not self.local_crashed:
+                self.multiplayer_result_text = "WIN"
+                self.send_result("WIN")
+                self.state = GameState.MP_RESULT
+        elif packet_type == PacketType.REMATCH_REQUEST:
+            if self.state == GameState.MP_RESULT:
+                self.send_rematch_response()
+                self.network_seed = random.randint(0, 2**31 - 1)
+                self.reset_game(seed=self.network_seed, multiplayer=True)
+                self.host_setup_sent = False
+                self.state = GameState.MP_WAITING
+                self.send_setup()
+        elif packet_type == PacketType.DISCONNECT:
+            self.connection_lost = True
+            self.connection_message = "Spojenie bolo prerušené."
+            self.multiplayer_result_text = "CONNECTION LOST"
+            self.state = GameState.MP_RESULT
+
+    def handle_client_packet(self, packet):
+        packet_type = packet["type"]
+
+        if packet_type == PacketType.SETUP:
+            self.network_seed = packet.get("seed")
+            self.local_player_index = 1
+            self.reset_game(seed=self.network_seed, multiplayer=True)
+            self.player = self.players[self.local_player_index]
+            self.network.send_packet({"type": PacketType.READY})
+            self.connection_message = "Nastavenie dokončené. Čakám na štart..."
+            self.state = GameState.MP_WAITING
+        elif packet_type == PacketType.START:
+            self.state = GameState.PLAYING
+            self.frame_count = 0
+        elif packet_type == PacketType.INPUT:
+            if packet.get("player") == 0:
+                self.remote_input["left"] = packet.get("left", False)
+                self.remote_input["right"] = packet.get("right", False)
+                self.remote_input["frame"] = packet.get("frame", self.frame_count)
+        elif packet_type == PacketType.RESULT:
+            self.multiplayer_result_text = packet.get("outcome", "LOSE")
+            self.state = GameState.MP_RESULT
+        elif packet_type == PacketType.REMATCH_RESPONSE:
+            self.connection_message = "Rematch akceptovaný. Čakám na nový zápas..."
+            self.state = GameState.MP_WAITING
+        elif packet_type == PacketType.DISCONNECT:
+            self.connection_lost = True
+            self.multiplayer_result_text = "CONNECTION LOST"
+            self.state = GameState.MP_RESULT
+
+    def update_singleplayer(self):
         keys = pygame.key.get_pressed()
         self.player.update(keys)
         self.road.update(self.current_speed)
@@ -176,10 +414,49 @@ class Game:
         self.audio.update_engine_pitch(self.current_speed)
         self.score_manager.increment_score(self.current_speed / 100)
 
-        if self.check_collisions():
+        if self.check_collisions(self.player):
             self.audio.stop_engine()
             self.audio.play_sfx('crash')
             self.state = GameState.GAME_OVER
+
+    def update_multiplayer(self):
+        if not self.network or not self.network.is_connected():
+            return
+
+        keys = pygame.key.get_pressed()
+        left = keys[pygame.K_LEFT]
+        right = keys[pygame.K_RIGHT]
+        self.local_input.update({"left": left, "right": right, "frame": self.frame_count})
+        self.send_input(left, right)
+
+        self.players[self.local_player_index].update(left=left, right=right)
+        remote_index = 1 - self.local_player_index
+        self.players[remote_index].update(left=self.remote_input["left"], right=self.remote_input["right"])
+
+        self.road.update(self.current_speed)
+        self.spawn_obstacle()
+        self.update_obstacles()
+        self.update_difficulty()
+        self.audio.update_engine_pitch(self.current_speed)
+        self.score_manager.increment_score(self.current_speed / 100)
+
+        if self.check_collisions(self.players[self.local_player_index]):
+            if not self.local_crashed:
+                self.local_crashed = True
+                self.send_crash(self.local_player_index)
+                if self.mode == GameMode.CLIENT:
+                    self.connection_message = "Krach. Čakám na výsledok..."
+                    self.state = GameState.MP_WAITING
+                elif self.mode == GameMode.HOST and not self.remote_crashed:
+                    self.multiplayer_result_text = "LOSE"
+                    self.send_result("LOSE")
+                    self.state = GameState.MP_RESULT
+        if self.mode == GameMode.HOST and self.remote_crashed and self.state != GameState.MP_RESULT:
+            self.multiplayer_result_text = "WIN"
+            self.send_result("WIN")
+            self.state = GameState.MP_RESULT
+
+        self.frame_count += 1
 
     def draw_game(self):
         self.screen.fill(GRASS_COLOR)
@@ -187,9 +464,15 @@ class Game:
         for o in self.obstacles:
             c = self.road.get_center_at(o.y + OBSTACLE_HEIGHT // 2) + o.offset
             o.draw(self.screen, c)
-        self.player.draw(self.screen)
+
+        if self.mode == GameMode.SINGLEPLAYER:
+            self.player.draw(self.screen)
+        else:
+            for p in self.players:
+                p.draw(self.screen)
+
         self.ui_manager.draw_hud(self.screen, int(self.score_manager.get_current_score()), self.current_speed,
-        self.audio)
+                                 self.audio)
 
     def draw_pause_screen(self):
         overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
@@ -198,11 +481,26 @@ class Game:
         panel_rect = pygame.Rect(WIDTH // 2 - 250, HEIGHT // 2 - 150, 500, 300)
         self.ui_manager.draw_glass_panel(self.screen, panel_rect, alpha=255)
         self.ui_manager.draw_text(self.screen, "PAUZA", self.ui_manager.font_large, UI_GOLD, WIDTH // 2,
-        panel_rect.y + 80, center=True)
+                                  panel_rect.y + 80, center=True)
         self.ui_manager.draw_text(self.screen, "ESC - Pokračovať", self.ui_manager.font_medium, UI_TEXT_MAIN,
-        WIDTH // 2, panel_rect.y + 160, center=True)
-        self.ui_manager.draw_text(self.screen, "Q - Späť do menu", self.ui_manager.font_medium, UI_TEXT_DIM, WIDTH // 2,
-        panel_rect.y + 210, center=True)
+                                  WIDTH // 2, panel_rect.y + 160, center=True)
+        self.ui_manager.draw_text(self.screen, "Q - Späť do menu", self.ui_manager.font_medium, UI_TEXT_DIM,
+                                  WIDTH // 2, panel_rect.y + 210, center=True)
+
+    def draw_multiplayer_status(self):
+        self.ui_manager.draw_connection_status(self.screen, "Multiplayer", self.connection_message)
+
+    def draw_multiplayer_result(self):
+        result = self.multiplayer_result_text
+        if result == "WIN":
+            caption = "VYHRAL SI"
+        elif result == "LOSE":
+            caption = "PREHRAL SI"
+        elif result == "DRAW":
+            caption = "REMÍZA"
+        else:
+            caption = result
+        self.ui_manager.draw_multiplayer_result(self.screen, caption)
 
     def run(self):
         while self.running:
@@ -214,17 +512,15 @@ class Game:
                 if event.type == pygame.QUIT:
                     self.running = False
 
-                # OVLÁDANIE HLASITOSTI ŠÍPKAMI
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_m:
                         self.audio.toggle_mute()
                     elif event.key == pygame.K_UP:
-                        # Ak sme mali mute a zvyšujeme zvuk, vypneme mute
-                        if self.audio.muted: self.audio.toggle_mute()
+                        if self.audio.muted:
+                            self.audio.toggle_mute()
                         self.audio.change_volume(0.1)
                     elif event.key == pygame.K_DOWN:
                         self.audio.change_volume(-0.1)
-                        # Ak hlasitosť klesne na 0 (alebo menej), aktivuj MUTE
                         if self.audio.engine_volume <= 0.01 and not self.audio.muted:
                             self.audio.toggle_mute()
 
@@ -233,24 +529,52 @@ class Game:
 
                 if self.state == GameState.MENU:
                     self.handle_menu_input(event, mouse_pos, mouse_clicked)
+                elif self.state == GameState.MP_CLIENT_SETUP:
+                    self.handle_join_input(event)
                 elif self.state == GameState.PLAYING:
                     self.handle_playing_input(event)
                 elif self.state == GameState.PAUSED:
                     self.handle_paused_input(event)
+                elif self.state == GameState.MP_RESULT:
+                    self.handle_multiplayer_result_input(event)
                 elif self.state == GameState.GAME_OVER:
                     self.handle_game_over_input(event, mouse_pos, mouse_clicked)
                 elif self.state == GameState.ENTERING_NAME:
                     self.handle_name_input(event)
 
+            self.process_network_messages()
+
             if self.state == GameState.MENU:
-                if self.ui_manager.draw_menu(self.screen, self.score_manager.get_highscores(), mouse_pos,
-                    mouse_clicked):
+                action = self.ui_manager.draw_menu(self.screen, self.score_manager.get_highscores(), mouse_pos,
+                                                   mouse_clicked)
+                if action == "single":
                     self.audio.play_sfx('click')
+                    self.mode = GameMode.SINGLEPLAYER
                     self.reset_game()
                     self.state = GameState.PLAYING
+                elif action == "host":
+                    self.audio.play_sfx('click')
+                    self.start_host_session()
+                elif action == "join":
+                    self.audio.play_sfx('click')
+                    self.mode = GameMode.CLIENT
+                    self.join_ip = ""
+                    self.state = GameState.MP_CLIENT_SETUP
+
+            elif self.state == GameState.MP_CLIENT_SETUP:
+                self.screen.fill(GRASS_COLOR)
+                self.ui_manager.draw_multiplayer_setup(self.screen, "JOIN GAME",
+                                                       "Zadaj IP hostiteľa a stlač ENTER:", self.join_ip)
+
+            elif self.state == GameState.MP_WAITING:
+                self.screen.fill(GRASS_COLOR)
+                self.draw_multiplayer_status()
 
             elif self.state == GameState.PLAYING:
-                self.update_game()
+                if self.mode == GameMode.SINGLEPLAYER:
+                    self.update_singleplayer()
+                else:
+                    self.update_multiplayer()
                 self.draw_game()
 
             elif self.state == GameState.PAUSED:
@@ -261,16 +585,20 @@ class Game:
                 self.draw_game()
                 score = self.score_manager.get_current_score()
                 if self.ui_manager.draw_game_over_screen(self.screen, int(score),
-                    self.score_manager.is_highscore(score), mouse_pos,
-                    mouse_clicked):
+                                                         self.score_manager.is_highscore(score), mouse_pos,
+                                                         mouse_clicked):
                     self.audio.play_sfx('click')
                     self.state = GameState.MENU
 
             elif self.state == GameState.ENTERING_NAME:
                 self.draw_game()
                 self.ui_manager.draw_game_over_screen(self.screen, int(self.score_manager.get_current_score()), True,
-                mouse_pos, False)
+                                                      mouse_pos, False)
                 self.ui_manager.draw_name_input(self.screen, self.player_name)
+
+            elif self.state == GameState.MP_RESULT:
+                self.draw_game()
+                self.draw_multiplayer_result()
 
             keys = pygame.key.get_pressed()
             if keys[pygame.K_TAB]:
@@ -278,4 +606,5 @@ class Game:
 
             pygame.display.flip()
 
+        self.cleanup_network()
         pygame.quit()

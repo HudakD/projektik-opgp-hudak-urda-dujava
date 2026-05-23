@@ -14,7 +14,8 @@ class RoadSegment:
 
 
 class Road:
-    def __init__(self):
+    def __init__(self, rng=None):
+        self.rng = rng if rng is not None else random.Random()
         self.segments = []
         self.center = WIDTH // 2
         self.start_center = WIDTH // 2
@@ -41,8 +42,8 @@ class Road:
             self.start_center = self.center
             min_target = int(max(margin, self.center - self.max_turn_distance))
             max_target = int(min(WIDTH - margin, self.center + self.max_turn_distance))
-            self.target_center = random.randint(min_target, max_target)
-            self.curve_duration = random.randint(100, 200)
+            self.target_center = self.rng.randint(min_target, max_target)
+            self.curve_duration = self.rng.randint(100, 200)
             self.curve_timer = self.curve_duration
 
         t = 1.0 - (self.curve_timer / self.curve_duration)

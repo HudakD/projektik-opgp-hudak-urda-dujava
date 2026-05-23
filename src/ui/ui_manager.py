@@ -76,9 +76,13 @@ class UIManager:
         btn_height = 65
         center_x = WIDTH // 2 - btn_width // 2
 
-        self.start_button = ModernButton(center_x, 340, btn_width, btn_height, "ŠTART PRETEKOV", self.font_medium)
+        self.start_button = ModernButton(center_x, 320, btn_width, btn_height, "ŠTART PRETEKOV", self.font_medium)
+        self.host_button = ModernButton(center_x, 410, btn_width, btn_height, "HOST GAME", self.font_medium)
+        self.join_button = ModernButton(center_x, 500, btn_width, btn_height, "JOIN GAME", self.font_medium)
         self.continue_button = ModernButton(center_x, HEIGHT // 2 + 80, btn_width, btn_height, "POKRAČOVAŤ",
                                             self.font_medium)
+        self.setup_join_button = ModernButton(center_x, HEIGHT // 2 + 40, btn_width, 60, "PRIPOJIŤ SA", self.font_medium)
+        self.setup_back_button = ModernButton(center_x, HEIGHT // 2 + 110, btn_width, 60, "SPÄŤ", self.font_medium)
 
         self.time_tracker = 0
 
@@ -141,12 +145,18 @@ class UIManager:
         self.start_button.update(mouse_pos)
         self.start_button.draw(screen)
 
-        panel_rect = pygame.Rect(WIDTH // 2 - 350, 450, 700, 220)
+        self.host_button.update(mouse_pos)
+        self.host_button.draw(screen)
+
+        self.join_button.update(mouse_pos)
+        self.join_button.draw(screen)
+
+        panel_rect = pygame.Rect(WIDTH // 2 - 350, 560, 700, 180)
         self.draw_glass_panel(screen, panel_rect)
 
-        self.draw_text(screen, "TOP JAZDCI", self.font_medium, UI_GOLD, WIDTH // 2, 475, center=True)
+        self.draw_text(screen, "TOP JAZDCI", self.font_medium, UI_GOLD, WIDTH // 2, 590, center=True)
 
-        y_off = 520
+        y_off = 620
         for i, entry in enumerate(highscores[:4]):
             color = UI_GOLD if i == 0 else UI_TEXT_MAIN
             name = entry['name'][:12]
@@ -165,7 +175,77 @@ class UIManager:
         keys_info = "[ TAB: TOP 20 ] [ ESC: PAUZA ] [ M: MUTE ] [ ŠÍPKY HORE/DOLE: HLASITOSŤ ]"
         self.draw_text(screen, keys_info, self.font_tech, (80, 80, 100), WIDTH // 2, HEIGHT - 30, center=True)
 
-        return self.start_button.is_clicked(mouse_pos, mouse_clicked)
+        if self.start_button.is_clicked(mouse_pos, mouse_clicked):
+            return "single"
+        if self.host_button.is_clicked(mouse_pos, mouse_clicked):
+            return "host"
+        if self.join_button.is_clicked(mouse_pos, mouse_clicked):
+            return "join"
+        return None
+
+    def draw_multiplayer_setup(self, screen, title, prompt, current_text, mouse_pos, mouse_clicked):
+        overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 220))
+        screen.blit(overlay, (0, 0))
+
+        panel_rect = pygame.Rect(WIDTH // 2 - 360, HEIGHT // 2 - 180, 720, 500)
+        self.draw_glass_panel(screen, panel_rect, alpha=235)
+
+        self.draw_text(screen, title, self.font_large, UI_ACCENT, WIDTH // 2, panel_rect.y + 70, center=True)
+        self.draw_text(screen, prompt, self.font_medium, UI_TEXT_MAIN, WIDTH // 2, panel_rect.y + 150, center=True)
+        self.draw_text(screen, "Podpora formátu: 192.168.0.100 alebo 10.0.0.5", self.font_small, UI_TEXT_DIM,
+                       WIDTH // 2, panel_rect.y + 190, center=True)
+
+        input_rect = pygame.Rect(WIDTH // 2 - 260, panel_rect.y + 220, 520, 60)
+        pygame.draw.rect(screen, (0, 0, 0), input_rect, border_radius=10)
+        pygame.draw.rect(screen, UI_ACCENT, input_rect, 3, border_radius=10)
+
+        cursor = "_" if (pygame.time.get_ticks() // 500) % 2 == 0 else ""
+        displayed = current_text if len(current_text) > 0 else "IP hostiteľa..."
+        text_color = UI_TEXT_MAIN if len(current_text) > 0 else UI_TEXT_DIM
+        text_surf = self.font_medium.render(displayed + cursor, True, text_color)
+        screen.blit(text_surf, (input_rect.x + 20, input_rect.y + 15))
+
+        # Position buttons below the input field
+        self.setup_join_button.rect.center = (WIDTH // 2, input_rect.y + 80 + 30)
+        self.setup_back_button.rect.center = (WIDTH // 2, input_rect.y + 150 + 30)
+
+        self.setup_join_button.update(mouse_pos)
+        self.setup_join_button.draw(screen)
+        self.setup_back_button.update(mouse_pos)
+        self.setup_back_button.draw(screen)
+
+        if self.setup_join_button.is_clicked(mouse_pos, mouse_clicked):
+            return "join"
+        if self.setup_back_button.is_clicked(mouse_pos, mouse_clicked):
+            return "back"
+        return None
+
+    def draw_connection_status(self, screen, title, status, details=None):
+        overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 220))
+        screen.blit(overlay, (0, 0))
+
+        panel_rect = pygame.Rect(WIDTH // 2 - 360, HEIGHT // 2 - 180, 720, 360)
+        self.draw_glass_panel(screen, panel_rect, alpha=235)
+
+        self.draw_text(screen, title, self.font_large, UI_ACCENT, WIDTH // 2, panel_rect.y + 80, center=True)
+        self.draw_text(screen, status, self.font_medium, UI_TEXT_MAIN, WIDTH // 2, panel_rect.y + 170, center=True)
+        if details:
+            self.draw_text(screen, details, self.font_small, UI_TEXT_DIM, WIDTH // 2, panel_rect.y + 220, center=True)
+
+    def draw_multiplayer_result(self, screen, result_text):
+        overlay = pygame.Surface((WIDTH, HEIGHT))
+        overlay.set_alpha(220)
+        overlay.fill((5, 5, 10))
+        screen.blit(overlay, (0, 0))
+
+        panel_rect = pygame.Rect(WIDTH // 2 - 360, HEIGHT // 2 - 180, 720, 360)
+        self.draw_glass_panel(screen, panel_rect, alpha=245)
+
+        self.draw_glowing_text(screen, result_text, self.font_large, UI_GOLD, (WIDTH // 2, panel_rect.y + 120))
+        self.draw_text(screen, "Stlač R pre rematch alebo ESC pre návrat do menu", self.font_small, UI_TEXT_DIM, WIDTH // 2,
+                       panel_rect.y + 220, center=True)
 
     def draw_leaderboard(self, screen, highscores):
         overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)

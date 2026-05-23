@@ -58,8 +58,8 @@ class Game:
         self.network = None
         self.network_seed = None
         self.local_player_index = 0
-        self.remote_input = {"left": False, "right": False, "frame": 0}
-        self.local_input = {"left": False, "right": False, "frame": 0}
+        self.remote_input = {"left": False, "right": False, "up": False, "down": False, "frame": 0}
+        self.local_input = {"left": False, "right": False, "up": False, "down": False, "frame": 0}
         self.frame_count = 0
         self.join_ip = ""
         self.connection_message = ""
@@ -105,8 +105,8 @@ class Game:
         self.last_difficulty_score = 0
         self.player_name = ""
         self.frame_count = 0
-        self.local_input = {"left": False, "right": False, "frame": 0}
-        self.remote_input = {"left": False, "right": False, "frame": 0}
+        self.local_input = {"left": False, "right": False, "up": False, "down": False, "frame": 0}
+        self.remote_input = {"left": False, "right": False, "up": False, "down": False, "frame": 0}
         self.local_crashed = False
         self.remote_crashed = False
         self.multiplayer_crash_sent = False
@@ -275,14 +275,16 @@ class Game:
             packet = {"type": PacketType.START}
             self.network.send_packet(packet)
 
-    def send_input(self, left, right):
+    def send_input(self, left, right, up=False, down=False):
         if self.network and self.network.is_connected():
             packet = {
                 "type": PacketType.INPUT,
                 "frame": self.frame_count,
                 "player": self.local_player_index,
                 "left": left,
-                "right": right
+                "right": right,
+                "up": up,
+                "down": down
             }
             self.network.send_packet(packet)
 
@@ -349,6 +351,8 @@ class Game:
             if packet.get("player") == 1:
                 self.remote_input["left"] = packet.get("left", False)
                 self.remote_input["right"] = packet.get("right", False)
+                self.remote_input["up"] = packet.get("up", False)
+                self.remote_input["down"] = packet.get("down", False)
                 self.remote_input["frame"] = packet.get("frame", self.frame_count)
         elif packet_type == PacketType.CRASH:
             self.remote_crashed = True
@@ -392,6 +396,8 @@ class Game:
             if packet.get("player") == 0:
                 self.remote_input["left"] = packet.get("left", False)
                 self.remote_input["right"] = packet.get("right", False)
+                self.remote_input["up"] = packet.get("up", False)
+                self.remote_input["down"] = packet.get("down", False)
                 self.remote_input["frame"] = packet.get("frame", self.frame_count)
         elif packet_type == PacketType.RESULT:
             self.multiplayer_result_text = packet.get("outcome", "LOSE")
@@ -422,16 +428,18 @@ class Game:
     def update_multiplayer(self):
         if not self.network or not self.network.is_connected():
             return
-
         keys = pygame.key.get_pressed()
         left = keys[pygame.K_LEFT]
         right = keys[pygame.K_RIGHT]
-        self.local_input.update({"left": left, "right": right, "frame": self.frame_count})
-        self.send_input(left, right)
+        up = keys[pygame.K_UP]
+        down = keys[pygame.K_DOWN]
+        self.local_input.update({"left": left, "right": right, "up": up, "down": down, "frame": self.frame_count})
+        self.send_input(left, right, up=up, down=down)
 
-        self.players[self.local_player_index].update(left=left, right=right)
+        # apply local and remote inputs (Player.update accepts flags)
+        self.players[self.local_player_index].update(left=left, right=right, up=up, down=down)
         remote_index = 1 - self.local_player_index
-        self.players[remote_index].update(left=self.remote_input["left"], right=self.remote_input["right"])
+        self.players[remote_index].update(left=self.remote_input["left"], right=self.remote_input["right"], up=self.remote_input.get("up", False), down=self.remote_input.get("down", False))
 
         self.road.update(self.current_speed)
         self.spawn_obstacle()

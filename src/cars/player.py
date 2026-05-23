@@ -12,7 +12,13 @@ class Player:
             self.x -= self.speed
         if keys[pygame.K_RIGHT]:
             self.x += self.speed
+        # pohyb (up / down)
+        if keys[pygame.K_UP]:
+            self.y -= self.speed
+        if keys[pygame.K_DOWN]:
+            self.y += self.speed
         self.x = max(PLAYER_WIDTH // 2, min(WIDTH - PLAYER_WIDTH // 2, self.x))
+        self.y = max(0, min(HEIGHT - PLAYER_HEIGHT, self.y))
 
     def draw(self, screen):
         x, y = self.x, self.y

@@ -515,11 +515,11 @@ class Game:
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_m:
                         self.audio.toggle_mute()
-                    elif event.key == pygame.K_UP:
+                    elif event.key == pygame.K_PLUS:
                         if self.audio.muted:
                             self.audio.toggle_mute()
                         self.audio.change_volume(0.1)
-                    elif event.key == pygame.K_DOWN:
+                    elif event.key == pygame.K_MINUS:
                         self.audio.change_volume(-0.1)
                         if self.audio.engine_volume <= 0.01 and not self.audio.muted:
                             self.audio.toggle_mute()

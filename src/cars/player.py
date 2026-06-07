@@ -7,6 +7,8 @@ class Player:
         self.y = y
         self.speed = 8
         self.color = color
+        self.has_shield = False
+        self.shield_expiry = 0
 
     def update(self, keys=None, left=False, right=False, up=False, down=False):
         """

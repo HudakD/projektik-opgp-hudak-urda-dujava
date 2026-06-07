@@ -5,12 +5,14 @@ from src.settings import *
 from src.road.road import Road
 from src.cars.player import Player
 from src.cars.obstacle import ObstacleCar
+from src.cars.bonus import Shield
 from src.score.score_manager import ScoreManager
 from src.ui.ui_manager import UIManager
 from src.audio.audio_manager import AudioManager
 from src.network import PacketType, HostServer, ClientPeer
 
 MIN_OBSTACLE_GAP = 300
+MIN_SHIELD_GAP = 1000
 
 
 class GameMode:
@@ -51,8 +53,12 @@ class Game:
         self.players = []
         self.obstacles = []
 
+        self.shield = []
+
         self.current_speed = INITIAL_SCROLL_SPEED
-        self.obstacle_spawn_rate = 8
+        self.obstacle_spawn_rate = 80000
+        self.shield_spawn_rate = 20 #TODO
+        self.next_shield_spawn_time = 0
         self.last_difficulty_score = 0
 
         self.network = None
@@ -99,6 +105,7 @@ class Game:
             self.players = [self.player]
 
         self.obstacles = []
+        self.shield = []
         self.score_manager.reset_score()
         self.current_speed = INITIAL_SCROLL_SPEED
         self.obstacle_spawn_rate = 8
@@ -136,6 +143,18 @@ class Game:
             new_obstacle.offset = self.rng.randint(-ROAD_WIDTH // 3, ROAD_WIDTH // 3)
             self.obstacles.append(new_obstacle)
 
+    def spawn_shield(self):
+        if self.shield:
+            highest = min(s.y for s in self.shield)
+            if highest > - MIN_SHIELD_GAP:
+                return
+
+        if self.rng.randint(0, self.shield_spawn_rate) == 0:
+            new_shield = Shield(-SHIELD_HEIGHT)
+            new_shield.offset = self.rng.randint(-ROAD_WIDTH // 3, ROAD_WIDTH // 3)
+            new_shield.offset = self.rng.randint(-ROAD_WIDTH // 3, ROAD_WIDTH // 3)
+            self.shield.append(new_shield)
+
     def update_obstacles(self):
         for o in self.obstacles:
             o.y += self.current_speed
@@ -148,12 +167,21 @@ class Game:
         if passed > 0:
             self.score_manager.increment_score(passed * 10)
 
+    def update_shields(self):
+        for s in self.shield:
+            s.y += self.current_speed
+        self.shield = [s for s in self.shield if s.y < HEIGHT + 200]
+
     def check_collisions(self, player):
         center_at_player = self.road.get_center_at(player.y + PLAYER_HEIGHT // 2)
         left_edge = center_at_player - ROAD_WIDTH // 2
         right_edge = center_at_player + ROAD_WIDTH // 2
 
         if player.x - PLAYER_WIDTH // 2 < left_edge or player.x + PLAYER_WIDTH // 2 > right_edge:
+            if player.has_shield:
+                player.has_shield = False
+                player.x = center_at_player
+                return False
             return True
 
         player_rect = pygame.Rect(
@@ -163,7 +191,21 @@ class Game:
             PLAYER_HEIGHT
         )
 
-        for o in self.obstacles:
+        current_time = pygame.time.get_ticks()
+        for s in self.shield[:]:
+            c = self.road.get_center_at(s.y + SHIELD_HEIGHT // 2) + s.offset
+            shield_rect = pygame.Rect(
+                c - SHIELD_WIDTH // 2,
+                s.y,
+                SHIELD_WIDTH,
+                SHIELD_HEIGHT
+            )
+            if player_rect.colliderect(shield_rect):
+                player.has_shield = True
+                player.shield_expiry = current_time + 5000
+                self.shield.remove(s)
+
+        for o in self.obstacles[:]:
             c = self.road.get_center_at(o.y + OBSTACLE_HEIGHT // 2) + o.offset
             obstacle_rect = pygame.Rect(
                 c - OBSTACLE_WIDTH // 2,
@@ -172,6 +214,10 @@ class Game:
                 OBSTACLE_HEIGHT
             )
             if player_rect.colliderect(obstacle_rect):
+                if player.has_shield:
+                    player.has_shield = False  # Shield absorbs the hit and breaks
+                    self.obstacles.remove(o)
+                    return False
                 return True
 
         return False
@@ -411,11 +457,16 @@ class Game:
             self.state = GameState.MP_RESULT
 
     def update_singleplayer(self):
+        if self.player.has_shield and pygame.time.get_ticks() > self.player.shield_expiry:
+            self.player.has_shield = False
+
         keys = pygame.key.get_pressed()
         self.player.update(keys)
         self.road.update(self.current_speed)
         self.spawn_obstacle()
+        self.spawn_shield()
         self.update_obstacles()
+        self.update_shields()
         self.update_difficulty()
         self.audio.update_engine_pitch(self.current_speed)
         self.score_manager.increment_score(self.current_speed / 100)
@@ -428,6 +479,11 @@ class Game:
     def update_multiplayer(self):
         if not self.network or not self.network.is_connected():
             return
+        current_time = pygame.time.get_ticks()
+        for p in self.players:
+            if p.has_shield and current_time > p.shield_expiry:
+                p.has_shield = False
+
         keys = pygame.key.get_pressed()
         left = keys[pygame.K_LEFT]
         right = keys[pygame.K_RIGHT]
@@ -466,17 +522,48 @@ class Game:
 
         self.frame_count += 1
 
+    def draw_shield_glow(self, player):
+        mid_x = player.x
+        mid_y = player.y + PLAYER_HEIGHT // 2
+
+        glow_radius = max(PLAYER_WIDTH, PLAYER_HEIGHT) * 1.2
+        glow_surface = pygame.Surface((glow_radius * 2, glow_radius * 2), pygame.SRCALPHA)
+        glow_color = (0, 128, 255)
+
+        for radius in range(int(glow_radius), int(PLAYER_WIDTH // 2), -4):
+            alpha = int(50 * (1.0 - (radius / glow_radius) ** 2))
+            if alpha > 0:
+                pygame.draw.circle(glow_surface, (*glow_color, alpha), (glow_radius, glow_radius), radius)
+
+        self.screen.blit(glow_surface, (mid_x - glow_radius, mid_y - glow_radius))
+
+        border_rect = pygame.Rect(
+            player.x - PLAYER_WIDTH // 2 - 2,
+            player.y - 2,
+            PLAYER_WIDTH + 4,
+            PLAYER_HEIGHT + 4
+        )
+        border_thickness = 3
+
+        pygame.draw.rect(self.screen, glow_color, border_rect, border_thickness, border_radius=4)
+
     def draw_game(self):
         self.screen.fill(GRASS_COLOR)
         self.road.draw(self.screen)
         for o in self.obstacles:
             c = self.road.get_center_at(o.y + OBSTACLE_HEIGHT // 2) + o.offset
             o.draw(self.screen, c)
-
+        for s in self.shield:
+            c = self.road.get_center_at(s.y + SHIELD_HEIGHT // 2) + s.offset
+            s.draw(self.screen, c)
         if self.mode == GameMode.SINGLEPLAYER:
+            if self.player.has_shield:
+                self.draw_shield_glow(self.player)
             self.player.draw(self.screen)
         else:
             for p in self.players:
+                if p.has_shield:
+                    self.draw_shield_glow(p)
                 p.draw(self.screen)
 
         self.ui_manager.draw_hud(self.screen, int(self.score_manager.get_current_score()), self.current_speed,

@@ -56,8 +56,8 @@ class Game:
         self.shield = []
 
         self.current_speed = INITIAL_SCROLL_SPEED
-        self.obstacle_spawn_rate = 80000
-        self.shield_spawn_rate = 20 #TODO
+        self.obstacle_spawn_rate = 8
+        self.shield_spawn_rate = 480
         self.next_shield_spawn_time = 0
         self.last_difficulty_score = 0
 

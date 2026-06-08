@@ -49,3 +49,33 @@ GAUGE_HIGH = (255, 50, 50)
 SOUND_ON = True
 SFX_VOLUME = 0.6
 ENGINE_VOLUME = 0.2
+
+# Car skins: (name, body_color, spoiler_color, wing_color, helmet_color)
+CAR_SKINS = [
+    {"name": "FERRARI",    "body": (220, 50, 50),   "spoiler": (150, 0, 0),   "wing": (50, 50, 50),  "helmet": (255, 255, 255)},
+    {"name": "MCLAREN",    "body": (255, 140, 0),    "spoiler": (200, 100, 0), "wing": (40, 40, 40),  "helmet": (255, 200, 0)},
+    {"name": "MERCEDES",   "body": (0, 200, 200),    "spoiler": (0, 140, 140), "wing": (30, 30, 30),  "helmet": (200, 255, 255)},
+    {"name": "RED BULL",   "body": (30, 30, 180),    "spoiler": (10, 10, 120), "wing": (50, 50, 50),  "helmet": (255, 255, 0)},
+    {"name": "ALPINE",     "body": (0, 120, 255),    "spoiler": (0, 80, 180),  "wing": (40, 40, 40),  "helmet": (255, 100, 100)},
+    {"name": "ASTON MARTIN","body": (0, 100, 60),    "spoiler": (0, 70, 40),   "wing": (30, 30, 30),  "helmet": (200, 200, 200)},
+    {"name": "WILLIAMS",   "body": (255, 255, 255),  "spoiler": (200, 200, 200),"wing": (50, 50, 50), "helmet": (0, 100, 255)},
+    {"name": "HAAS",       "body": (180, 180, 180),  "spoiler": (120, 120, 120),"wing": (40, 40, 40), "helmet": (220, 50, 50)},
+]
+
+SELECTED_SKIN_INDEX = 0
+
+# Lootbox & coins
+LOOTBOX_COST = 100
+COINS_FILE = "coins.txt"
+COIN_SPAWN_CHANCE = 30
+COIN_VALUE = 10
+COIN_SIZE = 24
+DUPLICATE_REFUND_PERCENT = 0.50
+
+# Paywall packages (visual only - not real payments)
+COIN_PACKAGES = [
+    {"name": "STARTER", "coins": 100, "price": "0.99 EUR"},
+    {"name": "POPULAR", "coins": 500, "price": "3.99 EUR"},
+    {"name": "MEGA", "coins": 1500, "price": "9.99 EUR"},
+    {"name": "ULTIMATE", "coins": 5000, "price": "24.99 EUR"},
+]

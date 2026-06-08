@@ -41,6 +41,7 @@ class GameState:
     MP_LOBBY = 15
     MP_COUNTDOWN = 16
     MP_LEADERBOARD = 17
+    MP_MODE_SELECT = 18
 
 
 class Game:
@@ -52,8 +53,8 @@ class Game:
         self.running = True
 
         self.score_manager = ScoreManager()
-        self.ui_manager = UIManager()
         self.audio = AudioManager()
+        self.ui_manager = UIManager(self.audio)
 
         self.state = GameState.MENU
         self.mode = GameMode.SINGLEPLAYER
@@ -369,12 +370,45 @@ class Game:
                     "pity_epic": sm.pity_epic, "pity_legendary": sm.pity_legendary}
 
     # --- Input handlers ---
-    def handle_menu_input(self, event, mouse_pos, mouse_clicked):
-        if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+    def handle_menu_input(self, event, mouse_pos, mouse_clicked, ui_action):
+        if ui_action == "single":
             self.audio.play_sfx('click')
             self.mode = GameMode.SINGLEPLAYER
             self.reset_game()
             self.state = GameState.PLAYING
+        elif ui_action == "multiplayer_selection":
+            self.audio.play_sfx('click')
+            self.state = GameState.MP_MODE_SELECT
+        elif ui_action == "collection":
+            self.audio.play_sfx('click')
+            self.state = GameState.COLLECTION
+        elif ui_action == "skins":
+            self.audio.play_sfx('click')
+            self.state = GameState.SKIN_SELECT
+        elif ui_action == "lootbox":
+            self.audio.play_sfx('click')
+            self.state = GameState.LOOTBOX_SHOP
+            self.ui_manager.lootbox_anim_frame = 0 # Reset animation
+        elif ui_action == "effects":
+            self.audio.play_sfx('click')
+            self.state = GameState.EFFECTS_SHOP
+        elif ui_action == "equip":
+            self.audio.play_sfx('click')
+            self.state = GameState.EQUIP_EFFECTS
+        elif ui_action == "play_button_toggle":
+            self.ui_manager.play_button_active = not self.ui_manager.play_button_active
+            self.audio.play_sfx('click')
+
+    def handle_multiplayer_mode_select_input(self, event, ui_action):
+        if ui_action == "host":
+            self.audio.play_sfx('click')
+            self.state = GameState.MP_HOST_SETUP
+        elif ui_action == "join":
+            self.audio.play_sfx('click')
+            self.state = GameState.MP_CLIENT_SETUP
+        elif ui_action == "back":
+            self.audio.play_sfx('click')
+            self.state = GameState.MENU
 
     def handle_host_setup_input(self, event):
         if event.type != pygame.KEYDOWN:
@@ -1275,7 +1309,13 @@ class Game:
                         if self.audio.engine_volume <= 0.01 and not self.audio.muted: self.audio.toggle_mute()
                 if event.type == pygame.MOUSEBUTTONDOWN: mouse_clicked = True
 
-                if self.state == GameState.MENU: self.handle_menu_input(event, mouse_pos, mouse_clicked)
+                if self.state == GameState.MENU:
+                    ui_action = self.ui_manager.draw_menu(self.screen, self.score_manager.get_highscores(),
+                                                          self.score_manager.get_coins(), mouse_pos, mouse_clicked)
+                    self.handle_menu_input(event, mouse_pos, mouse_clicked, ui_action)
+                elif self.state == GameState.MP_MODE_SELECT:
+                    ui_action = self.ui_manager.draw_multiplayer_mode_select(self.screen, mouse_pos, mouse_clicked)
+                    self.handle_multiplayer_mode_select_input(event, ui_action)
                 elif self.state == GameState.MP_HOST_SETUP: self.handle_host_setup_input(event)
                 elif self.state == GameState.MP_CLIENT_SETUP: self.handle_join_input(event)
                 elif self.state == GameState.MP_LOBBY: self.handle_lobby_input(event)

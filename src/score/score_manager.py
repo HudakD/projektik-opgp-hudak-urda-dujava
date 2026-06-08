@@ -96,6 +96,9 @@ class ScoreManager:
     def reset_session_coins(self):
         self.session_coins = 0
 
+    def get_coins(self):
+        return self.coins
+
     # --- Unlocked skins ---
     UNLOCKED_FILE = "unlocked_skins.txt"
 
@@ -189,7 +192,8 @@ class ScoreManager:
                         line = line.strip()
                         if '=' in line:
                             etype, idx_str = line.split('=', 1)
-                            equipped[etype] = int(idx_str) if idx_str.isdigit() else None
+                            if idx_str.isdigit():
+                                equipped[etype] = int(idx_str)
         except Exception:
             pass
         return equipped

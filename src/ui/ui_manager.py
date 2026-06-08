@@ -4,12 +4,14 @@ from src.settings import *
 
 
 class ModernButton:
-    def __init__(self, x, y, width, height, text, font):
+    def __init__(self, x, y, width, height, text, font, accent_color=UI_ACCENT, special_border=False):
         self.rect = pygame.Rect(x, y, width, height)
         self.text = text
         self.font = font
         self.hover_progress = 0.0
         self.is_hovered = False
+        self.accent_color = accent_color
+        self.special_border = special_border
 
     def update(self, mouse_pos):
         self.is_hovered = self.rect.collidepoint(mouse_pos)
@@ -18,20 +20,49 @@ class ModernButton:
 
     def draw(self, screen):
         alpha = int(180 + 75 * self.hover_progress)
+        # Determine base background color (UI_PANEL_BG for most, accent_color for prominent buttons)
+        base_bg = self.accent_color if self.accent_color == UI_ACCENT_GREEN else UI_PANEL_BG
+
         bg_color = (
-            int(UI_PANEL_BG[0] + (UI_ACCENT[0] - UI_PANEL_BG[0]) * 0.1 * self.hover_progress),
-            int(UI_PANEL_BG[1] + (UI_ACCENT[1] - UI_PANEL_BG[1]) * 0.1 * self.hover_progress),
-            int(UI_PANEL_BG[2] + (UI_ACCENT[2] - UI_PANEL_BG[2]) * 0.1 * self.hover_progress),
+            int(base_bg[0] + (self.accent_color[0] - base_bg[0]) * 0.2 * self.hover_progress),
+            int(base_bg[1] + (self.accent_color[1] - base_bg[1]) * 0.2 * self.hover_progress),
+            int(base_bg[2] + (self.accent_color[2] - base_bg[2]) * 0.2 * self.hover_progress),
         )
         s = pygame.Surface((self.rect.width, self.rect.height), pygame.SRCALPHA)
         pygame.draw.rect(s, (*bg_color, alpha), s.get_rect(), border_radius=12)
         border_color = (
-            int(100 + (UI_ACCENT[0] - 100) * self.hover_progress),
-            int(100 + (UI_ACCENT[1] - 100) * self.hover_progress),
-            int(100 + (UI_ACCENT[2] - 100) * self.hover_progress)
+            int(self.accent_color[0] + (UI_TEXT_MAIN[0] - self.accent_color[0]) * (1 - self.hover_progress)),
+            int(self.accent_color[1] + (UI_TEXT_MAIN[1] - self.accent_color[1]) * (1 - self.hover_progress)),
+            int(self.accent_color[2] + (UI_TEXT_MAIN[2] - self.accent_color[2]) * (1 - self.hover_progress))
         )
-        border_width = 2 if self.hover_progress < 0.5 else 3
-        pygame.draw.rect(s, border_color, s.get_rect(), border_width, border_radius=12)
+        border_width = 3 if self.hover_progress < 0.5 else 4
+        if self.special_border and self.hover_progress > 0:
+            # Draw special border with gaps and lines
+            border_rect = s.get_rect()
+            border_color_alpha = (*border_color, alpha) # Use the calculated border_color with alpha
+
+            # Draw top and bottom borders
+            pygame.draw.line(s, border_color_alpha, border_rect.topleft, border_rect.topright, border_width)
+            pygame.draw.line(s, border_color_alpha, border_rect.bottomleft, border_rect.bottomright, border_width)
+
+            # Draw left border with gap
+            gap_size = border_rect.height // 3
+            pygame.draw.line(s, border_color_alpha, border_rect.topleft, (border_rect.midleft[0], border_rect.centery - gap_size // 2), border_width)
+            pygame.draw.line(s, border_color_alpha, (border_rect.midleft[0], border_rect.centery + gap_size // 2), border_rect.bottomleft, border_width)
+
+            # Draw right border with gap
+            pygame.draw.line(s, border_color_alpha, border_rect.topright, (border_rect.midright[0], border_rect.centery - gap_size // 2), border_width)
+            pygame.draw.line(s, border_color_alpha, (border_rect.midright[0], border_rect.centery + gap_size // 2), border_rect.bottomright, border_width)
+
+            # Draw short lines from the gaps
+            line_length = 15
+            pygame.draw.line(s, border_color_alpha, (border_rect.midleft[0], border_rect.centery - line_length // 2), (border_rect.midleft[0] - line_length, border_rect.centery - line_length // 2), border_width)
+            pygame.draw.line(s, border_color_alpha, (border_rect.midleft[0], border_rect.centery + line_length // 2), (border_rect.midleft[0] - line_length, border_rect.centery + line_length // 2), border_width)
+            pygame.draw.line(s, border_color_alpha, (border_rect.midright[0], border_rect.centery - line_length // 2), (border_rect.midright[0] + line_length, border_rect.centery - line_length // 2), border_width)
+            pygame.draw.line(s, border_color_alpha, (border_rect.midright[0], border_rect.centery + line_length // 2), (border_rect.midright[0] + line_length, border_rect.centery + line_length // 2), border_width)
+
+        else:
+            pygame.draw.rect(s, border_color, s.get_rect(), border_width, border_radius=12)
         screen.blit(s, self.rect.topleft)
         text_color = UI_TEXT_MAIN
         y_offset = -2 * self.hover_progress
@@ -41,17 +72,18 @@ class ModernButton:
         text_surf = self.font.render(self.text, True, text_color)
         text_rect = text_surf.get_rect(center=(self.rect.centerx, self.rect.centery + y_offset))
         screen.blit(text_surf, text_rect)
-        if self.hover_progress > 0.1:
-            glow_rect = pygame.Rect(self.rect.x - 5, self.rect.y - 5, self.rect.width + 10, self.rect.height + 10)
-            pygame.draw.rect(screen, (*UI_ACCENT, int(30 * self.hover_progress)), glow_rect, 2, border_radius=15)
+        if self.hover_progress > 0.05: # Adjusted threshold for glow
+            glow_rect = pygame.Rect(self.rect.x - 7, self.rect.y - 7, self.rect.width + 14, self.rect.height + 14) # Increased glow size
+            pygame.draw.rect(screen, (*self.accent_color, int(50 * self.hover_progress)), glow_rect, 3, border_radius=18) # Increased glow alpha and width
 
     def is_clicked(self, mouse_pos, mouse_clicked):
         return self.is_hovered and mouse_clicked
 
 
 class UIManager:
-    def __init__(self):
+    def __init__(self, audio_manager):
         pygame.font.init()
+        self.audio = audio_manager
         self.font_title = pygame.font.SysFont("impact", 100)
         if not self.font_title:
             self.font_title = pygame.font.Font(None, 100)
@@ -62,16 +94,41 @@ class UIManager:
 
         bw, bh = 300, 48
         cx = WIDTH // 2 - bw // 2
-        cx_l = WIDTH // 2 - bw - 15
-        cx_r = WIDTH // 2 + 15
-        self.start_button = ModernButton(cx_l, 180, bw, bh, "START RACE", self.font_medium)
-        self.skins_button = ModernButton(cx_l, 236, bw, bh, "GARAZ", self.font_medium)
-        self.lootbox_button = ModernButton(cx_l, 292, bw, bh, "LOOTBOX", self.font_medium)
-        self.effects_button = ModernButton(cx_l, 348, bw, bh, "EFEKTY", self.font_medium)
-        self.equip_button = ModernButton(cx_r, 180, bw, bh, "VYBAVENIE", self.font_medium)
-        self.collection_button = ModernButton(cx_r, 236, bw, bh, "KOLEKCIA", self.font_medium)
-        self.host_button = ModernButton(cx_r, 292, bw, bh, "HOST GAME", self.font_medium)
-        self.join_button = ModernButton(cx_r, 348, bw, bh, "JOIN GAME", self.font_medium)
+
+        # New UI Buttons
+        # Play button at bottom-left
+        play_btn_w, play_btn_h = 250, 70
+        play_btn_x = 50
+        play_btn_y = HEIGHT - play_btn_h - 70 # Moved down by 10 more pixels
+        self.play_button = ModernButton(play_btn_x, play_btn_y, play_btn_w, play_btn_h, "HRAŤ", self.font_large, UI_ACCENT, special_border=True)
+
+        # Mode selection buttons (initially positioned to the right of play button)
+        mode_btn_w, mode_btn_h = 220, 50 # Widened
+        mode_btn_x = play_btn_x + play_btn_w + 30
+        mode_btn_y_start = play_btn_y + (play_btn_h - (mode_btn_h * 2 + 10)) // 2 # Center vertically relative to play button
+
+        self.singleplayer_button = ModernButton(mode_btn_x, mode_btn_y_start, mode_btn_w, mode_btn_h, "SINGLEPLAYER", self.font_medium)
+        self.multiplayer_button = ModernButton(mode_btn_x, mode_btn_y_start + mode_btn_h + 10, mode_btn_w, mode_btn_h, "MULTIPLAYER", self.font_medium)
+
+        # Top navigation buttons
+        nav_btn_w, nav_btn_h = 160, 40
+        nav_y = 50
+        nav_spacing = 20
+        # Calculate total width of navigation buttons
+        total_nav_width = (nav_btn_w * 5) + (nav_spacing * 4) # 5 buttons: Collection, Garage, Lootbox, Equip, Effects
+        current_nav_x = (WIDTH // 2) - (total_nav_width // 2) # Center alignment
+
+        self.collection_nav_button = ModernButton(current_nav_x, nav_y, nav_btn_w, nav_btn_h, "KOLEKCIA", self.font_medium)
+        current_nav_x += nav_btn_w + nav_spacing
+        self.garage_nav_button = ModernButton(current_nav_x, nav_y, nav_btn_w, nav_btn_h, "GARAZ", self.font_medium)
+        current_nav_x += nav_btn_w + nav_spacing
+        self.lootbox_nav_button = ModernButton(current_nav_x, nav_y, nav_btn_w, nav_btn_h, "LOOTBOX", self.font_medium)
+        current_nav_x += nav_btn_w + nav_spacing
+        self.equip_nav_button = ModernButton(current_nav_x, nav_y, nav_btn_w, nav_btn_h, "VYBAVENIE", self.font_medium)
+        current_nav_x += nav_btn_w + nav_spacing
+        self.effects_nav_button = ModernButton(current_nav_x, nav_y, nav_btn_w, nav_btn_h, "EFEKTY", self.font_medium)
+
+        # Existing buttons that are still relevant or need new positions
         self.continue_button = ModernButton(cx, HEIGHT // 2 + 80, bw, bh, "POKRAČOVAŤ", self.font_medium)
         self.setup_join_button = ModernButton(cx, HEIGHT // 2 + 40, bw, 60, "PRIPOJIŤ SA", self.font_medium)
         self.setup_back_button = ModernButton(cx, HEIGHT // 2 + 110, bw, 60, "SPÄŤ", self.font_medium)
@@ -87,6 +144,10 @@ class UIManager:
         self.ready_button = ModernButton(WIDTH // 2 - 330, HEIGHT - 82, 220, 54, "READY", self.font_medium)
         self.lobby_start_button = ModernButton(WIDTH // 2 - 90, HEIGHT - 82, 180, 54, "START", self.font_medium)
         self.lobby_back_button = ModernButton(WIDTH // 2 + 115, HEIGHT - 82, 220, 54, "SPAT", self.font_medium)
+
+        self.play_button_active = False # State to manage visibility of mode buttons
+
+        self.play_button_active = False # State to manage visibility of mode buttons
         self.paywall_buttons = []
         self.time_tracker = 0
         self.lootbox_anim_frame = 0
@@ -145,14 +206,52 @@ class UIManager:
     def draw_menu(self, screen, highscores, coins, mouse_pos, mouse_clicked):
         self.draw_animated_bg(screen)
         shadow = self.font_title.render("F1 TURBO", True, (0,0,0))
-        screen.blit(shadow, shadow.get_rect(center=(WIDTH//2+5, 95)))
-        self.draw_glowing_text(screen, "F1 TURBO", self.font_title, UI_ACCENT, (WIDTH//2, 90), 4)
-        self.draw_text(screen, "ULTIMATE RACING EXPERIENCE", self.font_small, UI_TEXT_DIM, WIDTH//2, 145, center=True)
+        screen.blit(shadow, shadow.get_rect(center=(WIDTH//2+5, 205)))
+        self.draw_glowing_text(screen, "F1 TURBO", self.font_title, UI_ACCENT, (WIDTH//2, 200), 4)
+        self.draw_text(screen, "ULTIMATE RACING EXPERIENCE", self.font_small, UI_TEXT_DIM, WIDTH//2, 255, center=True)
         self.draw_text(screen, f"COINS: {coins}", self.font_tech, UI_GOLD, WIDTH-260, 145)
-        all_btns = [self.start_button, self.skins_button, self.lootbox_button, self.effects_button,
-                    self.equip_button, self.collection_button, self.host_button, self.join_button]
-        for b in all_btns:
-            b.update(mouse_pos); b.draw(screen)
+
+        # Update and draw main play button
+        self.play_button.update(mouse_pos)
+        self.play_button.draw(screen)
+
+        ret_val = None
+
+        # Conditionally show mode selection buttons
+        if self.play_button_active:
+            self.singleplayer_button.update(mouse_pos)
+            self.multiplayer_button.update(mouse_pos)
+            self.singleplayer_button.draw(screen)
+            self.multiplayer_button.draw(screen)
+            if self.singleplayer_button.is_clicked(mouse_pos, mouse_clicked):
+                ret_val = "single"
+                self.play_button_active = False
+            elif self.multiplayer_button.is_clicked(mouse_pos, mouse_clicked):
+                ret_val = "multiplayer_selection" 
+                self.play_button_active = False
+        elif self.play_button.is_clicked(mouse_pos, mouse_clicked):
+            self.play_button_active = True
+            self.audio.play_sfx('click')
+
+        # Update and draw top navigation buttons
+        self.collection_nav_button.update(mouse_pos)
+        self.garage_nav_button.update(mouse_pos)
+        self.lootbox_nav_button.update(mouse_pos)
+        self.effects_nav_button.update(mouse_pos)
+        self.equip_nav_button.update(mouse_pos) # Add this line
+
+        self.collection_nav_button.draw(screen)
+        self.garage_nav_button.draw(screen)
+        self.lootbox_nav_button.draw(screen)
+        self.effects_nav_button.draw(screen)
+        self.equip_nav_button.draw(screen) # Add this line
+
+        if self.collection_nav_button.is_clicked(mouse_pos, mouse_clicked): return "collection"
+        if self.garage_nav_button.is_clicked(mouse_pos, mouse_clicked): return "skins" # Garage maps to skins for now
+        if self.lootbox_nav_button.is_clicked(mouse_pos, mouse_clicked): return "lootbox"
+        if self.effects_nav_button.is_clicked(mouse_pos, mouse_clicked): return "effects"
+        if self.equip_nav_button.is_clicked(mouse_pos, mouse_clicked): return "equip" # Add this line
+
         pr = pygame.Rect(WIDTH//2-350, 420, 700, 135)
         self.draw_glass_panel(screen, pr)
         self.draw_text(screen, "TOP JAZDCi", self.font_medium, UI_GOLD, WIDTH//2, 437, center=True)
@@ -164,14 +263,37 @@ class UIManager:
             screen.blit(self.font_tech.render(f"{int(e['score']):05d}", True, UI_ACCENT), (pr.right-200, yo))
             yo += 28
         self.draw_text(screen, "[ TAB: TOP 20 ] [ ESC: PAUZA ] [ M: MUTE ]", self.font_tech, (80,80,100), WIDTH//2, HEIGHT-15, center=True)
-        if self.start_button.is_clicked(mouse_pos, mouse_clicked): return "single"
-        if self.skins_button.is_clicked(mouse_pos, mouse_clicked): return "skins"
-        if self.lootbox_button.is_clicked(mouse_pos, mouse_clicked): return "lootbox"
-        if self.effects_button.is_clicked(mouse_pos, mouse_clicked): return "effects"
-        if self.equip_button.is_clicked(mouse_pos, mouse_clicked): return "equip"
-        if self.collection_button.is_clicked(mouse_pos, mouse_clicked): return "collection"
-        if self.host_button.is_clicked(mouse_pos, mouse_clicked): return "host"
-        if self.join_button.is_clicked(mouse_pos, mouse_clicked): return "join"
+        return ret_val
+
+    def draw_multiplayer_mode_select(self, screen, mouse_pos, mouse_clicked):
+        self.draw_animated_bg(screen)
+        self.draw_glowing_text(screen, "MULTIPLAYER", self.font_large, UI_ACCENT, (WIDTH // 2, HEIGHT // 2 - 150), 3)
+
+        host_btn_w, host_btn_h = 300, 60
+        host_btn_x = WIDTH // 2 - host_btn_w // 2
+        host_btn_y = HEIGHT // 2 - 50
+
+        join_btn_w, join_btn_h = 300, 60
+        join_btn_x = WIDTH // 2 - join_btn_w // 2
+        join_btn_y = HEIGHT // 2 + 30
+
+        self.host_button = ModernButton(host_btn_x, host_btn_y, host_btn_w, host_btn_h, "HOST GAME", self.font_medium)
+        self.join_button = ModernButton(join_btn_x, join_btn_y, join_btn_w, join_btn_h, "JOIN GAME", self.font_medium)
+
+        self.host_button.update(mouse_pos)
+        self.join_button.update(mouse_pos)
+        self.back_btn.update(mouse_pos)
+
+        self.host_button.draw(screen)
+        self.join_button.draw(screen)
+        self.back_btn.draw(screen)
+
+        if self.host_button.is_clicked(mouse_pos, mouse_clicked):
+            return "host"
+        if self.join_button.is_clicked(mouse_pos, mouse_clicked):
+            return "join"
+        if self.back_btn.is_clicked(mouse_pos, mouse_clicked):
+            return "back"
         return None
 
     def draw_lootbox_shop(self, screen, coins, unlocked_count, total_count, mouse_pos, mouse_clicked,
@@ -551,6 +673,9 @@ class UIManager:
         cat_type = types[category % len(types)]
         cat_label = EFFECT_TYPE_LABELS[cat_type]
         self.draw_text(screen, f"< {cat_label} >", self.font_large, UI_GOLD, WIDTH//2, 100, center=True)
+        # Display equipped count
+        equipped_count = len([idx for idx in equipped_effects.values() if idx is not None])
+        self.draw_text(screen, f"Vybavenych: {equipped_count}/{len(EFFECT_TYPE_LABELS)}", self.font_small, UI_TEXT_DIM, WIDTH//2, 135, center=True)
         cat_effects = [(i, e) for i, e in enumerate(EFFECTS) if e["type"] == cat_type]
         card_w, card_h = 200, 120
         gap = 16

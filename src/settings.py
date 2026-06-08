@@ -40,6 +40,7 @@ UI_BG_DARK = (12, 12, 20)
 UI_PANEL_BG = (20, 25, 40)
 UI_ACCENT = (0, 255, 200)
 UI_ACCENT_HOVER = (150, 255, 230)
+UI_ACCENT_GREEN = (0, 200, 100) # Green accent for play button
 UI_WARNING = (255, 60, 80)
 UI_GOLD = (255, 215, 0)
 UI_TEXT_MAIN = (245, 245, 255)

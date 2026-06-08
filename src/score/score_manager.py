@@ -1,5 +1,7 @@
 import os
-from src.settings import SCORE_FILE, MAX_HIGHSCORES, COINS_FILE
+from src.settings import (SCORE_FILE, MAX_HIGHSCORES, COINS_FILE, PITY_FILE,
+                          EFFECTS, EFFECTS_FILE, EQUIPPED_EFFECTS_FILE, STARTER_EFFECTS)
+
 
 class ScoreManager:
     def __init__(self):
@@ -11,6 +13,9 @@ class ScoreManager:
         if 0 not in self.unlocked_skins:
             self.unlocked_skins.add(0)
             self.save_unlocked_skins()
+        self.pity_epic, self.pity_legendary = self.load_pity()
+        self.unlocked_effects = self.load_unlocked_effects()
+        self.equipped_effects = self.load_equipped_effects()
 
     def load_highscores(self):
         if not os.path.exists(SCORE_FILE):
@@ -118,3 +123,100 @@ class ScoreManager:
         self.unlocked_skins.add(index)
         self.save_unlocked_skins()
         return True
+
+    # --- Pity counters ---
+    def load_pity(self):
+        try:
+            if os.path.exists(PITY_FILE):
+                with open(PITY_FILE, 'r') as f:
+                    lines = [l.strip() for l in f if l.strip()]
+                    if len(lines) >= 2:
+                        return int(lines[0]), int(lines[1])
+        except Exception:
+            pass
+        return 0, 0
+
+    def save_pity(self):
+        try:
+            with open(PITY_FILE, 'w') as f:
+                f.write(f"{self.pity_epic}\n{self.pity_legendary}\n")
+        except Exception as e:
+            print(f"Chyba pri ukladani pity: {e}")
+
+    # --- Unlocked Effects ---
+    def load_unlocked_effects(self):
+        unlocked = set()
+        try:
+            if os.path.exists(EFFECTS_FILE):
+                with open(EFFECTS_FILE, 'r') as f:
+                    for line in f:
+                        line = line.strip()
+                        if line:
+                            unlocked.add(int(line))
+        except Exception:
+            pass
+        # Ensure starter effects are always present
+        for idx in STARTER_EFFECTS:
+            unlocked.add(idx)
+        self.save_unlocked_effects_internal(unlocked)
+        return unlocked
+
+    def save_unlocked_effects_internal(self, unlocked_set):
+        try:
+            with open(EFFECTS_FILE, 'w') as f:
+                for idx in sorted(unlocked_set):
+                    f.write(f"{idx}\n")
+        except Exception as e:
+            print(f"Chyba pri ukladani efektov: {e}")
+
+    def save_unlocked_effects(self):
+        self.save_unlocked_effects_internal(self.unlocked_effects)
+
+    def unlock_effect(self, index):
+        if index in self.unlocked_effects:
+            return False
+        self.unlocked_effects.add(index)
+        self.save_unlocked_effects()
+        return True
+
+    # --- Equipped Effects ---
+    def load_equipped_effects(self):
+        equipped = {}
+        try:
+            if os.path.exists(EQUIPPED_EFFECTS_FILE):
+                with open(EQUIPPED_EFFECTS_FILE, 'r') as f:
+                    for line in f:
+                        line = line.strip()
+                        if '=' in line:
+                            etype, idx_str = line.split('=', 1)
+                            equipped[etype] = int(idx_str) if idx_str.isdigit() else None
+        except Exception:
+            pass
+        return equipped
+
+    def save_equipped_effects(self):
+        try:
+            with open(EQUIPPED_EFFECTS_FILE, 'w') as f:
+                for etype, idx in self.equipped_effects.items():
+                    f.write(f"{etype}={idx if idx is not None else ''}\n")
+        except Exception as e:
+            print(f"Chyba pri ukladani vybavenia: {e}")
+
+    def equip_effect(self, effect_index):
+        effect = EFFECTS[effect_index]
+        etype = effect["type"]
+        self.equipped_effects[etype] = effect_index
+        self.save_equipped_effects()
+
+    def unequip_effect(self, effect_type):
+        self.equipped_effects[effect_type] = None
+        self.save_equipped_effects()
+
+    def get_active_effects(self):
+        active = {}
+        for etype, idx in self.equipped_effects.items():
+            if idx is not None and 0 <= idx < len(EFFECTS):
+                active[etype] = EFFECTS[idx]
+            else:
+                active[etype] = None
+        return active

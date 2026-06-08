@@ -1,6 +1,7 @@
 import pygame
 import random
 import socket
+import math
 from src.settings import *
 from src.road.road import Road
 from src.cars.player import Player
@@ -32,6 +33,9 @@ class GameState:
     SKIN_SELECT = 8
     LOOTBOX_SHOP = 9
     PAYWALL = 10
+    COLLECTION = 11
+    EFFECTS_SHOP = 12
+    EQUIP_EFFECTS = 13
 
 
 class Game:
@@ -78,6 +82,11 @@ class Game:
         self.selected_skin_index = 0
         self.lootbox_result = None
         self.paywall_message = None
+        self.effect_box_result = None
+        self.effect_equip_category = 0
+        self.effect_particles = []
+        self.effect_trails = []
+        self.effect_frame = 0
 
     def get_local_ip(self):
         try:
@@ -126,6 +135,9 @@ class Game:
         self.remote_crashed = False
         self.multiplayer_crash_sent = False
         self.audio.start_engine()
+        self.effect_particles = []
+        self.effect_trails = []
+        self.effect_frame = 0
 
     def increase_difficulty(self):
         if self.current_speed < MAX_SCROLL_SPEED:
@@ -191,16 +203,108 @@ class Game:
     def open_lootbox(self):
         if not self.score_manager.spend_coins(LOOTBOX_COST):
             return None
-        skin_idx = random.randint(0, len(CAR_SKINS) - 1)
-        skin = CAR_SKINS[skin_idx]
-        is_new = self.score_manager.unlock_skin(skin_idx)
-        if is_new:
-            return {"skin_name": skin["name"], "skin_index": skin_idx, "is_new": True, "refund": 0}
+
+        sm = self.score_manager
+        sm.pity_epic += 1
+        sm.pity_legendary += 1
+
+        if sm.pity_legendary >= PITY_LEGENDARY_THRESHOLD:
+            target_rarity = RARITY_LEGENDARY
+        elif sm.pity_epic >= PITY_EPIC_THRESHOLD:
+            if random.randint(1, 100) <= 20:
+                target_rarity = RARITY_LEGENDARY
+            else:
+                target_rarity = RARITY_EPIC
         else:
-            refund = int(LOOTBOX_COST * DUPLICATE_REFUND_PERCENT)
-            self.score_manager.add_coins(refund)
-            self.score_manager.session_coins -= refund
-            return {"skin_name": skin["name"], "skin_index": skin_idx, "is_new": False, "refund": refund}
+            roll = random.randint(1, 100)
+            cumulative = 0
+            target_rarity = RARITY_COMMON
+            for rarity, weight in RARITY_WEIGHTS.items():
+                cumulative += weight
+                if roll <= cumulative:
+                    target_rarity = rarity
+                    break
+
+        candidates = [i for i, s in enumerate(CAR_SKINS) if s.get("rarity") == target_rarity]
+        if not candidates:
+            candidates = list(range(len(CAR_SKINS)))
+        skin_idx = random.choice(candidates)
+        skin = CAR_SKINS[skin_idx]
+        actual_rarity = skin.get("rarity", RARITY_COMMON)
+
+        if actual_rarity == RARITY_LEGENDARY:
+            sm.pity_legendary = 0
+            sm.pity_epic = 0
+        elif actual_rarity in (RARITY_EPIC,):
+            sm.pity_epic = 0
+        sm.save_pity()
+
+        is_new = sm.unlock_skin(skin_idx)
+        if is_new:
+            return {"skin_name": skin["name"], "skin_index": skin_idx, "is_new": True,
+                    "refund": 0, "rarity": actual_rarity,
+                    "pity_epic": sm.pity_epic, "pity_legendary": sm.pity_legendary}
+        else:
+            refund = RARITY_REFUND.get(actual_rarity, 50)
+            sm.add_coins(refund)
+            sm.session_coins -= refund
+            return {"skin_name": skin["name"], "skin_index": skin_idx, "is_new": False,
+                    "refund": refund, "rarity": actual_rarity,
+                    "pity_epic": sm.pity_epic, "pity_legendary": sm.pity_legendary}
+
+    def open_effect_box(self):
+        if not self.score_manager.spend_coins(EFFECT_BOX_COST):
+            return None
+
+        sm = self.score_manager
+        sm.pity_epic += 1
+        sm.pity_legendary += 1
+
+        if sm.pity_legendary >= PITY_LEGENDARY_THRESHOLD:
+            target_rarity = RARITY_LEGENDARY
+        elif sm.pity_epic >= PITY_EPIC_THRESHOLD:
+            if random.randint(1, 100) <= 20:
+                target_rarity = RARITY_LEGENDARY
+            else:
+                target_rarity = RARITY_EPIC
+        else:
+            roll = random.randint(1, 100)
+            cumulative = 0
+            target_rarity = RARITY_COMMON
+            for rarity, weight in RARITY_WEIGHTS.items():
+                cumulative += weight
+                if roll <= cumulative:
+                    target_rarity = rarity
+                    break
+
+        candidates = [i for i, e in enumerate(EFFECTS) if e.get("rarity") == target_rarity]
+        if not candidates:
+            candidates = list(range(len(EFFECTS)))
+        effect_idx = random.choice(candidates)
+        effect = EFFECTS[effect_idx]
+        actual_rarity = effect.get("rarity", RARITY_COMMON)
+
+        if actual_rarity == RARITY_LEGENDARY:
+            sm.pity_legendary = 0
+            sm.pity_epic = 0
+        elif actual_rarity in (RARITY_EPIC,):
+            sm.pity_epic = 0
+        sm.save_pity()
+
+        is_new = sm.unlock_effect(effect_idx)
+        if is_new:
+            return {"effect_name": effect["name"], "effect_index": effect_idx,
+                    "effect_type": effect["type"], "color": effect["color"],
+                    "is_new": True, "refund": 0, "rarity": actual_rarity,
+                    "pity_epic": sm.pity_epic, "pity_legendary": sm.pity_legendary}
+        else:
+            refund = RARITY_REFUND.get(actual_rarity, 50)
+            sm.add_coins(refund)
+            sm.session_coins -= refund
+            return {"effect_name": effect["name"], "effect_index": effect_idx,
+                    "effect_type": effect["type"], "color": effect["color"],
+                    "is_new": False, "refund": refund, "rarity": actual_rarity,
+                    "pity_epic": sm.pity_epic, "pity_legendary": sm.pity_legendary}
 
     # --- Input handlers ---
     def handle_menu_input(self, event, mouse_pos, mouse_clicked):
@@ -286,15 +390,43 @@ class Game:
             if event.key == pygame.K_ESCAPE:
                 self.audio.play_sfx('click'); self.lootbox_result = None; self.state = GameState.MENU
             elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
-                if self.lootbox_result:
+                if self.lootbox_result and self.ui_manager.lootbox_anim_frame > 235:
                     self.audio.play_sfx('click'); self.lootbox_result = None
-                elif self.score_manager.coins >= LOOTBOX_COST:
+                elif not self.lootbox_result and self.score_manager.coins >= LOOTBOX_COST:
                     self.audio.play_sfx('click'); self.lootbox_result = self.open_lootbox()
+                    self.ui_manager.lootbox_anim_frame = 0
 
     def handle_paywall_input(self, event):
         if event.type == pygame.KEYDOWN:
             if event.key in (pygame.K_ESCAPE, pygame.K_RETURN):
                 self.audio.play_sfx('click'); self.paywall_message = None; self.state = GameState.LOOTBOX_SHOP
+
+    def handle_collection_input(self, event):
+        if event.type == pygame.KEYDOWN:
+            if event.key in (pygame.K_ESCAPE, pygame.K_RETURN):
+                self.audio.play_sfx('click'); self.state = GameState.MENU
+
+    def handle_effects_shop_input(self, event):
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_ESCAPE:
+                self.audio.play_sfx('click'); self.effect_box_result = None; self.state = GameState.MENU
+            elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
+                if self.effect_box_result and self.ui_manager.lootbox_anim_frame > 235:
+                    self.audio.play_sfx('click'); self.effect_box_result = None
+                elif not self.effect_box_result and self.score_manager.coins >= EFFECT_BOX_COST:
+                    self.audio.play_sfx('click'); self.effect_box_result = self.open_effect_box()
+                    self.ui_manager.lootbox_anim_frame = 0
+
+    def handle_equip_effects_input(self, event):
+        if event.type == pygame.KEYDOWN:
+            if event.key in (pygame.K_ESCAPE, pygame.K_RETURN):
+                self.audio.play_sfx('click'); self.state = GameState.MENU
+            elif event.key == pygame.K_LEFT:
+                self.audio.play_sfx('click')
+                self.effect_equip_category = (self.effect_equip_category - 1) % len(EFFECT_TYPE_LABELS)
+            elif event.key == pygame.K_RIGHT:
+                self.audio.play_sfx('click')
+                self.effect_equip_category = (self.effect_equip_category + 1) % len(EFFECT_TYPE_LABELS)
 
     # --- Multiplayer ---
     def start_host_session(self):
@@ -403,6 +535,7 @@ class Game:
         self.update_obstacles(); self.update_coins(); self.update_difficulty()
         self.audio.update_engine_pitch(self.current_speed)
         self.score_manager.increment_score(self.current_speed / 100)
+        self._update_effect_particles()
         if self.check_collisions(self.player):
             self.audio.stop_engine(); self.audio.play_sfx('crash'); self.state = GameState.GAME_OVER
 
@@ -419,6 +552,7 @@ class Game:
         self.road.update(self.current_speed); self.spawn_obstacle(); self.update_obstacles(); self.update_difficulty()
         self.audio.update_engine_pitch(self.current_speed)
         self.score_manager.increment_score(self.current_speed / 100)
+        self._update_effect_particles()
         if self.check_collisions(self.players[self.local_player_index]):
             if not self.local_crashed:
                 self.local_crashed = True; self.send_crash(self.local_player_index)
@@ -430,6 +564,68 @@ class Game:
             self.multiplayer_result_text = "WIN"; self.send_result("WIN"); self.state = GameState.MP_RESULT
         self.frame_count += 1
 
+    # --- Effect particles update ---
+    def _update_effect_particles(self):
+        if not self.player:
+            return
+        active = self.score_manager.get_active_effects()
+        px, py = self.player.x, self.player.y
+        self.effect_frame += 1
+
+        # Exhaust particles
+        exhaust = active.get(EFFECT_EXHAUST)
+        if exhaust and self.effect_frame % 3 == 0:
+            col = exhaust["color"]
+            self.effect_particles.append({
+                "x": px + random.randint(-8, 8),
+                "y": py + PLAYER_HEIGHT - 5,
+                "vx": random.uniform(-1.0, 1.0),
+                "vy": random.uniform(1.5, 3.5),
+                "life": random.randint(15, 30),
+                "max_life": 30,
+                "color": col,
+                "size": random.randint(3, 7),
+                "type": "exhaust",
+            })
+
+        # Trail
+        trail = active.get(EFFECT_TRAIL)
+        if trail:
+            self.effect_trails.append({"x": px - PLAYER_WIDTH // 2 + 8, "y": py + PLAYER_HEIGHT - 10, "life": 40, "color": trail["color"]})
+            self.effect_trails.append({"x": px + PLAYER_WIDTH // 2 - 8, "y": py + PLAYER_HEIGHT - 10, "life": 40, "color": trail["color"]})
+
+        # Boost sparks on close obstacle pass
+        boost = active.get(EFFECT_BOOST)
+        if boost:
+            for o in self.obstacles:
+                c = self.road.get_center_at(o.y + OBSTACLE_HEIGHT // 2) + o.offset
+                dist = math.sqrt((px - c) ** 2 + (py - o.y) ** 2)
+                if dist < 50 and random.random() < 0.4:
+                    self.effect_particles.append({
+                        "x": px + random.randint(-20, 20),
+                        "y": py + random.randint(0, PLAYER_HEIGHT),
+                        "vx": random.uniform(-3, 3),
+                        "vy": random.uniform(-3, 1),
+                        "life": random.randint(8, 18),
+                        "max_life": 18,
+                        "color": boost["color"],
+                        "size": random.randint(2, 5),
+                        "type": "boost",
+                    })
+
+        # Decay particles
+        for p in self.effect_particles:
+            p["x"] += p["vx"]
+            p["y"] += p["vy"]
+            p["life"] -= 1
+        self.effect_particles = [p for p in self.effect_particles if p["life"] > 0]
+
+        # Decay trails
+        for t in self.effect_trails:
+            t["y"] += self.current_speed
+            t["life"] -= 1
+        self.effect_trails = [t for t in self.effect_trails if t["life"] > 0]
+
     # --- Draw ---
     def draw_game(self):
         self.screen.fill(GRASS_COLOR)
@@ -438,11 +634,62 @@ class Game:
         for o in self.obstacles:
             c = self.road.get_center_at(o.y + OBSTACLE_HEIGHT // 2) + o.offset
             o.draw(self.screen, c)
-        if self.mode == GameMode.SINGLEPLAYER: self.player.draw(self.screen)
-        else:
-            for p in self.players: p.draw(self.screen)
+        self._draw_player_with_effects()
         self.ui_manager.draw_hud(self.screen, int(self.score_manager.get_current_score()), self.current_speed,
                                  self.audio, self.score_manager.session_coins)
+
+    def _draw_player_with_effects(self):
+        if not self.player:
+            return
+        active = self.score_manager.get_active_effects()
+        px, py = self.player.x, self.player.y
+
+        # GLOW: pulsing circle behind car
+        glow = active.get(EFFECT_GLOW)
+        if glow:
+            pulse = 0.6 + 0.4 * math.sin(self.effect_frame * 0.08)
+            r = int(50 * pulse)
+            glow_surf = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
+            alpha = int(60 * pulse)
+            pygame.draw.circle(glow_surf, (*glow["color"], alpha), (r, r), r)
+            self.screen.blit(glow_surf, (px - r, py + PLAYER_HEIGHT // 2 - r))
+
+        # TRAIL: position history on road
+        trail = active.get(EFFECT_TRAIL)
+        if trail:
+            for t in self.effect_trails:
+                a = int(180 * t["life"] / 40)
+                trail_surf = pygame.Surface((6, 4), pygame.SRCALPHA)
+                trail_surf.fill((*t["color"], a))
+                self.screen.blit(trail_surf, (int(t["x"]), int(t["y"])))
+
+        # Draw the car itself
+        if self.mode == GameMode.SINGLEPLAYER:
+            self.player.draw(self.screen)
+        else:
+            for p in self.players:
+                p.draw(self.screen)
+
+        # EXHAUST & BOOST particles
+        for p in self.effect_particles:
+            a = int(220 * p["life"] / p["max_life"])
+            p_surf = pygame.Surface((p["size"] * 2, p["size"] * 2), pygame.SRCALPHA)
+            pygame.draw.circle(p_surf, (*p["color"], a), (p["size"], p["size"]), p["size"])
+            self.screen.blit(p_surf, (int(p["x"]) - p["size"], int(p["y"]) - p["size"]))
+
+        # AURA: speed lines at high speed
+        aura = active.get(EFFECT_AURA)
+        if aura and self.current_speed > MAX_SCROLL_SPEED * 0.5:
+            intensity = (self.current_speed - MAX_SCROLL_SPEED * 0.5) / (MAX_SCROLL_SPEED * 0.5)
+            num_lines = int(6 * intensity)
+            aura_surf = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+            for i in range(num_lines):
+                lx = px + random.randint(-120, 120)
+                ly = py + random.randint(-40, PLAYER_HEIGHT)
+                length = random.randint(20, 60)
+                a = int(100 * intensity * random.random())
+                pygame.draw.line(aura_surf, (*aura["color"], a), (lx, ly), (lx, ly + length), 2)
+            self.screen.blit(aura_surf, (0, 0))
 
     def draw_pause_screen(self):
         ov = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA); ov.fill((10,10,15,200)); self.screen.blit(ov, (0,0))
@@ -489,6 +736,9 @@ class Game:
                 elif self.state == GameState.SKIN_SELECT: self.handle_skin_input(event)
                 elif self.state == GameState.LOOTBOX_SHOP: self.handle_lootbox_input(event)
                 elif self.state == GameState.PAYWALL: self.handle_paywall_input(event)
+                elif self.state == GameState.COLLECTION: self.handle_collection_input(event)
+                elif self.state == GameState.EFFECTS_SHOP: self.handle_effects_shop_input(event)
+                elif self.state == GameState.EQUIP_EFFECTS: self.handle_equip_effects_input(event)
 
             self.process_network_messages()
 
@@ -502,6 +752,12 @@ class Game:
                     self.audio.play_sfx('click'); self.state = GameState.SKIN_SELECT
                 elif action == "lootbox":
                     self.audio.play_sfx('click'); self.lootbox_result = None; self.state = GameState.LOOTBOX_SHOP
+                elif action == "effects":
+                    self.audio.play_sfx('click'); self.effect_box_result = None; self.state = GameState.EFFECTS_SHOP
+                elif action == "equip":
+                    self.audio.play_sfx('click'); self.state = GameState.EQUIP_EFFECTS
+                elif action == "collection":
+                    self.audio.play_sfx('click'); self.state = GameState.COLLECTION
                 elif action == "host":
                     self.audio.play_sfx('click'); self.start_host_session()
                 elif action == "join":
@@ -525,28 +781,72 @@ class Game:
             elif self.state == GameState.LOOTBOX_SHOP:
                 action = self.ui_manager.draw_lootbox_shop(self.screen, self.score_manager.coins,
                     len(self.score_manager.unlocked_skins), len(CAR_SKINS),
-                    mouse_pos, mouse_clicked, self.lootbox_result)
+                    mouse_pos, mouse_clicked, self.lootbox_result,
+                    self.score_manager.pity_epic, self.score_manager.pity_legendary)
                 if action == "buy":
                     self.audio.play_sfx('click'); self.lootbox_result = self.open_lootbox()
+                    self.ui_manager.lootbox_anim_frame = 0
                 elif action == "paywall":
                     self.audio.play_sfx('click'); self.paywall_message = None; self.state = GameState.PAYWALL
                 elif action == "back":
                     self.audio.play_sfx('click'); self.lootbox_result = None; self.state = GameState.MENU
-                if self.lootbox_result and mouse_clicked:
+                if self.lootbox_result and mouse_clicked and self.ui_manager.lootbox_anim_frame > 235:
                     self.audio.play_sfx('click'); self.lootbox_result = None
+
+            elif self.state == GameState.EFFECTS_SHOP:
+                action = self.ui_manager.draw_effects_shop(self.screen, self.score_manager.coins,
+                    len(self.score_manager.unlocked_effects), len(EFFECTS),
+                    mouse_pos, mouse_clicked, self.effect_box_result,
+                    self.score_manager.pity_epic, self.score_manager.pity_legendary)
+                if action == "buy":
+                    self.audio.play_sfx('click'); self.effect_box_result = self.open_effect_box()
+                    self.ui_manager.lootbox_anim_frame = 0
+                elif action == "paywall":
+                    self.audio.play_sfx('click'); self.paywall_message = None; self.state = GameState.PAYWALL
+                elif action == "back":
+                    self.audio.play_sfx('click'); self.effect_box_result = None; self.state = GameState.MENU
+                if self.effect_box_result and mouse_clicked and self.ui_manager.lootbox_anim_frame > 235:
+                    self.audio.play_sfx('click'); self.effect_box_result = None
+
+            elif self.state == GameState.EQUIP_EFFECTS:
+                action = self.ui_manager.draw_equip_effects(self.screen,
+                    self.score_manager.unlocked_effects, self.score_manager.equipped_effects,
+                    self.effect_equip_category, mouse_pos, mouse_clicked)
+                if action == "back":
+                    self.audio.play_sfx('click'); self.state = GameState.MENU
+                elif action == "prev_cat":
+                    self.audio.play_sfx('click')
+                    self.effect_equip_category = (self.effect_equip_category - 1) % len(EFFECT_TYPE_LABELS)
+                elif action == "next_cat":
+                    self.audio.play_sfx('click')
+                    self.effect_equip_category = (self.effect_equip_category + 1) % len(EFFECT_TYPE_LABELS)
+                elif action and action.startswith("equip_"):
+                    idx = int(action.split("_")[1])
+                    self.audio.play_sfx('click'); self.score_manager.equip_effect(idx)
+                elif action and action.startswith("unequip_"):
+                    etype = action.split("_", 1)[1]
+                    self.audio.play_sfx('click'); self.score_manager.unequip_effect(etype)
 
             elif self.state == GameState.PAYWALL:
                 action = self.ui_manager.draw_paywall(self.screen, self.score_manager.coins, mouse_pos, mouse_clicked)
                 if action == "close":
                     self.audio.play_sfx('click'); self.paywall_message = None; self.state = GameState.LOOTBOX_SHOP
                 elif action and action.startswith("pkg_"):
-                    # Fake purchase - show message
                     self.audio.play_sfx('click')
-                    self.paywall_message = True
-
-                # If message showing, any click dismisses back to shop
+                    pkg_idx = int(action.split("_")[1])
+                    if pkg_idx < len(COIN_PACKAGES) and COIN_PACKAGES[pkg_idx].get("admin", False):
+                        self.score_manager.add_coins(COIN_PACKAGES[pkg_idx]["coins"])
+                        self.paywall_message = True
+                    else:
+                        self.paywall_message = True
                 if self.paywall_message and mouse_clicked:
                     self.paywall_message = None; self.state = GameState.LOOTBOX_SHOP
+
+            elif self.state == GameState.COLLECTION:
+                action = self.ui_manager.draw_collection(self.screen, self.score_manager.unlocked_skins,
+                                                          mouse_pos, mouse_clicked)
+                if action == "back":
+                    self.audio.play_sfx('click'); self.state = GameState.MENU
 
             elif self.state == GameState.MP_CLIENT_SETUP:
                 self.screen.fill(GRASS_COLOR)

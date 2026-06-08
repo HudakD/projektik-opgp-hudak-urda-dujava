@@ -1,0 +1,5 @@
+exhaust=0
+trail=6
+glow=9
+aura=15
+boost=16

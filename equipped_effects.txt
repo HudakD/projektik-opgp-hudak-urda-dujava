@@ -1,4 +1,4 @@
-exhaust=0
+exhaust=1
 trail=6
 glow=9
 aura=15

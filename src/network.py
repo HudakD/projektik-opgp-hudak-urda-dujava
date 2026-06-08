@@ -11,6 +11,13 @@ class PacketType(str, Enum):
     SETUP = "SETUP"
     READY = "READY"
     START = "START"
+    COUNTDOWN = "COUNTDOWN"
+    GAME_BEGIN = "GAME_BEGIN"
+    GAME_STATE = "GAME_STATE"
+    LOBBY_STATE = "LOBBY_STATE"
+    CHAT = "CHAT"
+    NAME = "NAME"
+    SERVER_FULL = "SERVER_FULL"
     INPUT = "INPUT"
     CRASH = "CRASH"
     RESULT = "RESULT"
@@ -112,12 +119,15 @@ class TcpPeer:
 
 
 class HostServer:
-    def __init__(self, bind_ip="0.0.0.0", port=5000, backlog=1):
+    def __init__(self, bind_ip="0.0.0.0", port=5000, backlog=1, max_clients=1):
         self.bind_ip = bind_ip
         self.port = port
         self.backlog = backlog
+        self.max_clients = max(1, max_clients)
         self.listener = None
-        self.client_peer = None
+        self.clients = {}
+        self.client_addresses = {}
+        self.next_client_id = 1
         self.accept_thread = None
         self.accepting = False
         self.connected = False
@@ -138,12 +148,22 @@ class HostServer:
             try:
                 client_sock, address = self.listener.accept()
                 client_sock.settimeout(0.5)
-                self.client_peer = TcpPeer(client_sock)
-                self.client_peer.connected = True
-                self.client_peer.start_receiver()
+                if len(self.clients) >= self.max_clients:
+                    overflow_peer = TcpPeer(client_sock)
+                    overflow_peer.connected = True
+                    overflow_peer.send_packet({"type": PacketType.SERVER_FULL})
+                    overflow_peer.stop()
+                    continue
+
+                client_id = self.next_client_id
+                self.next_client_id += 1
+                peer = TcpPeer(client_sock)
+                peer.connected = True
+                peer.client_id = client_id
+                peer.start_receiver()
+                self.clients[client_id] = peer
+                self.client_addresses[client_id] = address
                 self.connected = True
-                self.accepting = False
-                break
             except socket.timeout:
                 continue
             except Exception:
@@ -152,8 +172,10 @@ class HostServer:
 
     def stop(self):
         self.accepting = False
-        if self.client_peer:
-            self.client_peer.stop()
+        for peer in list(self.clients.values()):
+            peer.stop()
+        self.clients.clear()
+        self.client_addresses.clear()
         if self.listener:
             try:
                 self.listener.close()
@@ -161,19 +183,47 @@ class HostServer:
                 pass
         self.connected = False
 
-    def send_packet(self, packet):
-        if self.client_peer and self.client_peer.connected:
-            self.client_peer.send_packet(packet)
-        else:
-            self.connected = False
+    def send_packet(self, packet, client_id=None):
+        if client_id is not None:
+            peer = self.clients.get(client_id)
+            if peer and peer.connected:
+                peer.send_packet(packet)
+            return
+
+        dead = []
+        for cid, peer in list(self.clients.items()):
+            if peer.connected:
+                peer.send_packet(packet)
+            else:
+                dead.append(cid)
+        for cid in dead:
+            self.clients.pop(cid, None)
+            self.client_addresses.pop(cid, None)
+        self.connected = bool(self.clients)
 
     def get_packets(self):
-        if not self.client_peer:
-            return []
-        return self.client_peer.get_packets()
+        packets = []
+        dead = []
+        for cid, peer in list(self.clients.items()):
+            if not peer.connected:
+                dead.append(cid)
+                continue
+            for packet in peer.get_packets():
+                if isinstance(packet, dict):
+                    packet["_client_id"] = cid
+                packets.append(packet)
+        for cid in dead:
+            self.clients.pop(cid, None)
+            self.client_addresses.pop(cid, None)
+            packets.append({"type": PacketType.DISCONNECT, "_client_id": cid})
+        self.connected = bool(self.clients)
+        return packets
 
     def is_connected(self):
-        return self.connected and self.client_peer and self.client_peer.connected
+        return self.accepting or bool(self.clients)
+
+    def get_client_count(self):
+        return len(self.clients)
 
 
 class ClientPeer:

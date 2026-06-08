@@ -83,6 +83,10 @@ class UIManager:
         self.next_btn = ModernButton(WIDTH // 2 + 240, HEIGHT // 2 - 30, 80, 80, ">", self.font_large)
         self.select_btn = ModernButton(cx, HEIGHT // 2 + 180, bw, 55, "VYBRAŤ", self.font_medium)
         self.paywall_close_btn = ModernButton(cx, HEIGHT - 60, bw, 50, "ZAVRIEŤ", self.font_medium)
+        self.setup_create_button = ModernButton(cx, HEIGHT // 2 + 115, bw, 58, "VYTVORIT", self.font_medium)
+        self.ready_button = ModernButton(WIDTH // 2 - 330, HEIGHT - 82, 220, 54, "READY", self.font_medium)
+        self.lobby_start_button = ModernButton(WIDTH // 2 - 90, HEIGHT - 82, 180, 54, "START", self.font_medium)
+        self.lobby_back_button = ModernButton(WIDTH // 2 + 115, HEIGHT - 82, 220, 54, "SPAT", self.font_medium)
         self.paywall_buttons = []
         self.time_tracker = 0
         self.lootbox_anim_frame = 0
@@ -692,6 +696,214 @@ class UIManager:
         if self.back_btn.is_clicked(mouse_pos, mouse_clicked): return "back"
         return None
 
+    def _draw_input_box(self, screen, rect, label, value, active=False, placeholder=""):
+        self.draw_text(screen, label, self.font_small, UI_TEXT_DIM, rect.x, rect.y - 26)
+        pygame.draw.rect(screen, (0, 0, 0), rect, border_radius=8)
+        pygame.draw.rect(screen, UI_ACCENT if active else (90, 100, 120), rect, 3 if active else 2, border_radius=8)
+        cursor = "_" if active and (pygame.time.get_ticks() // 500) % 2 == 0 else ""
+        text = value if value else placeholder
+        color = UI_TEXT_MAIN if value else UI_TEXT_DIM
+        screen.blit(self.font_medium.render(text + cursor, True, color), (rect.x + 16, rect.y + 14))
+
+    def draw_host_setup(self, screen, host_name, player_count, mouse_pos, mouse_clicked):
+        self.draw_animated_bg(screen)
+        panel = pygame.Rect(WIDTH // 2 - 360, HEIGHT // 2 - 240, 720, 520)
+        self.draw_glass_panel(screen, panel, 238)
+        self.draw_glowing_text(screen, "HOST LOBBY", self.font_large, UI_ACCENT, (WIDTH // 2, panel.y + 58), 3)
+
+        name_rect = pygame.Rect(WIDTH // 2 - 260, panel.y + 135, 520, 58)
+        self._draw_input_box(screen, name_rect, "MENO HOSTA", host_name, True, "Host")
+
+        self.draw_text(screen, "POCET HRACOV V LOBBY", self.font_small, UI_TEXT_DIM,
+                       WIDTH // 2, panel.y + 235, center=True)
+        count_rect = pygame.Rect(WIDTH // 2 - 80, panel.y + 260, 160, 70)
+        pygame.draw.rect(screen, (0, 0, 0), count_rect, border_radius=10)
+        pygame.draw.rect(screen, UI_GOLD, count_rect, 2, border_radius=10)
+        self.draw_text(screen, str(player_count), self.font_large, UI_TEXT_MAIN,
+                       WIDTH // 2, count_rect.centery + 2, center=True)
+
+        minus_btn = ModernButton(count_rect.x - 85, count_rect.y + 5, 65, 60, "<", self.font_large)
+        plus_btn = ModernButton(count_rect.right + 20, count_rect.y + 5, 65, 60, ">", self.font_large)
+        minus_btn.update(mouse_pos); minus_btn.draw(screen)
+        plus_btn.update(mouse_pos); plus_btn.draw(screen)
+
+        self.draw_text(screen, "Sipky vlavo/vpravo menia pocet hracov.", self.font_small, UI_TEXT_DIM,
+                       WIDTH // 2, panel.y + 350, center=True)
+        self.setup_create_button.rect.center = (WIDTH // 2, panel.y + 415)
+        self.setup_back_button.rect.center = (WIDTH // 2, panel.y + 485)
+        self.setup_create_button.update(mouse_pos); self.setup_create_button.draw(screen)
+        self.setup_back_button.update(mouse_pos); self.setup_back_button.draw(screen)
+
+        if minus_btn.is_clicked(mouse_pos, mouse_clicked): return "minus"
+        if plus_btn.is_clicked(mouse_pos, mouse_clicked): return "plus"
+        if self.setup_create_button.is_clicked(mouse_pos, mouse_clicked): return "create"
+        if self.setup_back_button.is_clicked(mouse_pos, mouse_clicked): return "back"
+        return None
+
+    def draw_join_setup(self, screen, ip_text, name_text, active_field, mouse_pos, mouse_clicked):
+        self.draw_animated_bg(screen)
+        panel = pygame.Rect(WIDTH // 2 - 380, HEIGHT // 2 - 250, 760, 540)
+        self.draw_glass_panel(screen, panel, 238)
+        self.draw_glowing_text(screen, "JOIN GAME", self.font_large, UI_ACCENT, (WIDTH // 2, panel.y + 58), 3)
+
+        ip_rect = pygame.Rect(WIDTH // 2 - 280, panel.y + 135, 560, 58)
+        name_rect = pygame.Rect(WIDTH // 2 - 280, panel.y + 235, 560, 58)
+        self._draw_input_box(screen, ip_rect, "IP HOSTITELA", ip_text, active_field == "ip", "192.168.0.100")
+        self._draw_input_box(screen, name_rect, "TVOJE MENO", name_text, active_field == "name", "Player")
+        self.draw_text(screen, "TAB prepina pole, ENTER sa pripoji.", self.font_small, UI_TEXT_DIM,
+                       WIDTH // 2, panel.y + 330, center=True)
+
+        self.setup_join_button.rect.center = (WIDTH // 2, panel.y + 405)
+        self.setup_back_button.rect.center = (WIDTH // 2, panel.y + 475)
+        self.setup_join_button.update(mouse_pos); self.setup_join_button.draw(screen)
+        self.setup_back_button.update(mouse_pos); self.setup_back_button.draw(screen)
+
+        if mouse_clicked and ip_rect.collidepoint(mouse_pos): return "ip"
+        if mouse_clicked and name_rect.collidepoint(mouse_pos): return "name"
+        if self.setup_join_button.is_clicked(mouse_pos, mouse_clicked): return "join"
+        if self.setup_back_button.is_clicked(mouse_pos, mouse_clicked): return "back"
+        return None
+
+    def draw_multiplayer_lobby(self, screen, players, target_count, chat_messages, chat_input,
+                               chat_active, is_host, can_start, host_info, local_index,
+                               mouse_pos, mouse_clicked):
+        self.draw_animated_bg(screen)
+        self.draw_glowing_text(screen, "MULTIPLAYER LOBBY", self.font_large, UI_ACCENT,
+                               (WIDTH // 2, 54), 3)
+        self.draw_text(screen, host_info, self.font_small, UI_TEXT_DIM, WIDTH // 2, 94, center=True)
+
+        left = pygame.Rect(70, 120, 510, 460)
+        right = pygame.Rect(620, 120, 590, 460)
+        self.draw_glass_panel(screen, left, 230)
+        self.draw_glass_panel(screen, right, 230)
+        self.draw_text(screen, f"HRACI {len(players)}/{target_count}", self.font_medium, UI_GOLD,
+                       left.x + 28, left.y + 22)
+        self.draw_text(screen, "CHAT", self.font_medium, UI_GOLD, right.x + 28, right.y + 22)
+
+        local_ready = False
+        y = left.y + 78
+        for slot in range(target_count):
+            row = pygame.Rect(left.x + 24, y, left.width - 48, 48)
+            if slot % 2 == 0:
+                surf = pygame.Surface((row.width, row.height), pygame.SRCALPHA)
+                surf.fill((255, 255, 255, 12))
+                screen.blit(surf, row.topleft)
+            player = next((p for p in players if p.get("index") == slot), None)
+            if player:
+                skin_index = player.get("skin_index", 0)
+                if not isinstance(skin_index, int):
+                    skin_index = 0
+                skin = CAR_SKINS[skin_index % len(CAR_SKINS)]
+                pygame.draw.circle(screen, skin["body"], (row.x + 22, row.centery), 10)
+                name_color = UI_GOLD if player.get("index") == local_index else UI_TEXT_MAIN
+                self.draw_text(screen, player.get("name", "Player")[:16], self.font_small, name_color,
+                               row.x + 46, row.y + 13)
+                badge = "HOST" if player.get("is_host") else ("READY" if player.get("ready") else "WAIT")
+                badge_color = UI_GOLD if player.get("is_host") else (GAUGE_LOW if player.get("ready") else UI_WARNING)
+                self.draw_text(screen, badge, self.font_tech, badge_color, row.right - 110, row.y + 12)
+                if player.get("index") == local_index:
+                    local_ready = bool(player.get("ready"))
+            else:
+                self.draw_text(screen, f"Volny slot {slot + 1}", self.font_small, UI_TEXT_DIM,
+                               row.x + 46, row.y + 13)
+            y += 58
+
+        chat_y = right.y + 78
+        for entry in chat_messages[-8:]:
+            sender = str(entry.get("sender", ""))[:14]
+            message = str(entry.get("message", ""))[:70]
+            self.draw_text(screen, sender + ":", self.font_small, UI_ACCENT, right.x + 28, chat_y)
+            self.draw_text(screen, message, self.font_small, UI_TEXT_MAIN, right.x + 170, chat_y)
+            chat_y += 38
+
+        input_rect = pygame.Rect(right.x + 24, right.bottom - 72, right.width - 48, 48)
+        self._draw_input_box(screen, input_rect, "", chat_input, chat_active, "Klikni alebo ENTER pre chat")
+
+        self.ready_button.text = "UNREADY" if local_ready else "READY"
+        self.ready_button.update(mouse_pos); self.ready_button.draw(screen)
+        if is_host:
+            self.lobby_start_button.text = "START" if can_start else "CAKAJ"
+            self.lobby_start_button.update(mouse_pos); self.lobby_start_button.draw(screen)
+            if not can_start:
+                self.draw_text(screen, "Treba plne lobby a READY od kazdeho.", self.font_small, UI_TEXT_DIM,
+                               WIDTH // 2, HEIGHT - 105, center=True)
+        self.lobby_back_button.update(mouse_pos); self.lobby_back_button.draw(screen)
+
+        if mouse_clicked and input_rect.collidepoint(mouse_pos): return "chat"
+        if self.ready_button.is_clicked(mouse_pos, mouse_clicked): return "ready"
+        if is_host and can_start and self.lobby_start_button.is_clicked(mouse_pos, mouse_clicked): return "start"
+        if self.lobby_back_button.is_clicked(mouse_pos, mouse_clicked): return "back"
+        return None
+
+    def draw_countdown_lights(self, screen, countdown_value):
+        ov = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        ov.fill((0, 0, 0, 145))
+        screen.blit(ov, (0, 0))
+        panel = pygame.Rect(WIDTH // 2 - 310, 95, 620, 230)
+        self.draw_glass_panel(screen, panel, 245)
+        self.draw_text(screen, "STARTING GRID", self.font_medium, UI_GOLD,
+                       WIDTH // 2, panel.y + 35, center=True)
+        light_y = panel.y + 120
+        radius = 34
+        gap = 88
+        active_count = MULTIPLAYER_COUNTDOWN_SECONDS - max(1, countdown_value) + 1
+        for i in range(MULTIPLAYER_COUNTDOWN_SECONDS):
+            x = WIDTH // 2 - gap * 2 + i * gap
+            pygame.draw.circle(screen, (20, 20, 25), (x, light_y), radius + 6)
+            if countdown_value <= 0:
+                color = GAUGE_LOW
+            elif i < active_count:
+                color = UI_WARNING
+            else:
+                color = (55, 25, 30)
+            pygame.draw.circle(screen, color, (x, light_y), radius)
+            pygame.draw.circle(screen, (255, 255, 255), (x - 10, light_y - 10), 7)
+        label = "GO!" if countdown_value <= 0 else str(countdown_value)
+        self.draw_glowing_text(screen, label, self.font_large,
+                               GAUGE_LOW if countdown_value <= 0 else UI_WARNING,
+                               (WIDTH // 2, panel.y + 190), 3)
+
+    def draw_spectator_banner(self, screen):
+        banner = pygame.Rect(WIDTH // 2 - 190, 58, 380, 42)
+        surf = pygame.Surface((banner.width, banner.height), pygame.SRCALPHA)
+        surf.fill((0, 0, 0, 185))
+        screen.blit(surf, banner.topleft)
+        pygame.draw.rect(screen, UI_WARNING, banner, 2, border_radius=8)
+        self.draw_text(screen, "SPECTATING - si vyradeny", self.font_small, UI_WARNING,
+                       banner.centerx, banner.centery + 1, center=True)
+
+    def draw_multiplayer_leaderboard(self, screen, results, is_host, mouse_pos, mouse_clicked):
+        self.draw_animated_bg(screen)
+        panel = pygame.Rect(WIDTH // 2 - 380, 70, 760, 560)
+        self.draw_glass_panel(screen, panel, 245)
+        self.draw_glowing_text(screen, "ROUND LEADERBOARD", self.font_large, UI_GOLD,
+                               (WIDTH // 2, panel.y + 55), 3)
+        headers_y = panel.y + 120
+        self.draw_text(screen, "#", self.font_small, UI_TEXT_DIM, panel.x + 55, headers_y)
+        self.draw_text(screen, "MENO", self.font_small, UI_TEXT_DIM, panel.x + 120, headers_y)
+        self.draw_text(screen, "CAS", self.font_small, UI_TEXT_DIM, panel.x + 410, headers_y)
+        self.draw_text(screen, "STAV", self.font_small, UI_TEXT_DIM, panel.x + 560, headers_y)
+        y = headers_y + 38
+        for result in results[:8]:
+            color = UI_GOLD if result.get("place") == 1 else UI_TEXT_MAIN
+            self.draw_text(screen, str(result.get("place", "-")), self.font_small, color, panel.x + 55, y)
+            self.draw_text(screen, str(result.get("name", "Player"))[:18], self.font_small, color, panel.x + 120, y)
+            self.draw_text(screen, f"{float(result.get('duration', 0.0)):.2f}s", self.font_tech, UI_ACCENT,
+                           panel.x + 410, y)
+            state = "OUT" if result.get("crashed", False) else "WIN"
+            self.draw_text(screen, state, self.font_tech, UI_WARNING if state == "OUT" else GAUGE_LOW,
+                           panel.x + 560, y)
+            y += 42
+        if is_host:
+            self.continue_button.text = "LOBBY"
+            self.continue_button.rect.center = (WIDTH // 2, panel.bottom - 50)
+            self.continue_button.update(mouse_pos); self.continue_button.draw(screen)
+            if self.continue_button.is_clicked(mouse_pos, mouse_clicked): return "lobby"
+        else:
+            self.draw_text(screen, "Cakam, kym host vrati lobby...", self.font_small, UI_TEXT_DIM,
+                           WIDTH // 2, panel.bottom - 50, center=True)
+        return None
+
     def draw_multiplayer_setup(self, screen, title, prompt, current_text, mouse_pos, mouse_clicked):
         ov = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA); ov.fill((0,0,0,220)); screen.blit(ov, (0,0))
         pr = pygame.Rect(WIDTH//2-360, HEIGHT//2-180, 720, 500)
@@ -814,6 +1026,7 @@ class UIManager:
         if is_highscore:
             self.draw_text(screen, "Zadaj meno a stlac ENTER", self.font_small, UI_ACCENT, WIDTH//2, py2+260, center=True)
         else:
+            self.continue_button.text = "POKRACOVAT"
             self.continue_button.rect.center = (WIDTH//2, py2+320)
             self.continue_button.update(mouse_pos); self.continue_button.draw(screen)
             return self.continue_button.is_clicked(mouse_pos, mouse_clicked)

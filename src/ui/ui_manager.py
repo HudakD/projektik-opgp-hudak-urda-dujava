@@ -23,10 +23,8 @@ class ModernButton:
             int(UI_PANEL_BG[1] + (UI_ACCENT[1] - UI_PANEL_BG[1]) * 0.1 * self.hover_progress),
             int(UI_PANEL_BG[2] + (UI_ACCENT[2] - UI_PANEL_BG[2]) * 0.1 * self.hover_progress),
         )
-
         s = pygame.Surface((self.rect.width, self.rect.height), pygame.SRCALPHA)
         pygame.draw.rect(s, (*bg_color, alpha), s.get_rect(), border_radius=12)
-
         border_color = (
             int(100 + (UI_ACCENT[0] - 100) * self.hover_progress),
             int(100 + (UI_ACCENT[1] - 100) * self.hover_progress),
@@ -35,25 +33,16 @@ class ModernButton:
         border_width = 2 if self.hover_progress < 0.5 else 3
         pygame.draw.rect(s, border_color, s.get_rect(), border_width, border_radius=12)
         screen.blit(s, self.rect.topleft)
-
         text_color = UI_TEXT_MAIN
         y_offset = -2 * self.hover_progress
-
         shadow_surf = self.font.render(self.text, True, (0, 0, 0))
         shadow_rect = shadow_surf.get_rect(center=(self.rect.centerx + 2, self.rect.centery + 2 + y_offset))
         screen.blit(shadow_surf, shadow_rect)
-
         text_surf = self.font.render(self.text, True, text_color)
         text_rect = text_surf.get_rect(center=(self.rect.centerx, self.rect.centery + y_offset))
         screen.blit(text_surf, text_rect)
-
         if self.hover_progress > 0.1:
-            glow_rect = pygame.Rect(
-                self.rect.x - 5,
-                self.rect.y - 5,
-                self.rect.width + 10,
-                self.rect.height + 10
-            )
+            glow_rect = pygame.Rect(self.rect.x - 5, self.rect.y - 5, self.rect.width + 10, self.rect.height + 10)
             pygame.draw.rect(screen, (*UI_ACCENT, int(30 * self.hover_progress)), glow_rect, 2, border_radius=15)
 
     def is_clicked(self, mouse_pos, mouse_clicked):
@@ -66,376 +55,841 @@ class UIManager:
         self.font_title = pygame.font.SysFont("impact", 100)
         if not self.font_title:
             self.font_title = pygame.font.Font(None, 100)
-
         self.font_large = pygame.font.Font(None, 60)
         self.font_medium = pygame.font.Font(None, 40)
         self.font_small = pygame.font.Font(None, 28)
         self.font_tech = pygame.font.SysFont("consolas", 24, bold=True)
 
-        btn_width = 320
-        btn_height = 65
-        center_x = WIDTH // 2 - btn_width // 2
-
-        self.start_button = ModernButton(center_x, 320, btn_width, btn_height, "ŠTART PRETEKOV", self.font_medium)
-        self.host_button = ModernButton(center_x, 410, btn_width, btn_height, "HOST GAME", self.font_medium)
-        self.join_button = ModernButton(center_x, 500, btn_width, btn_height, "JOIN GAME", self.font_medium)
-        self.continue_button = ModernButton(center_x, HEIGHT // 2 + 80, btn_width, btn_height, "POKRAČOVAŤ",
-                                            self.font_medium)
-        self.setup_join_button = ModernButton(center_x, HEIGHT // 2 + 40, btn_width, 60, "PRIPOJIŤ SA", self.font_medium)
-        self.setup_back_button = ModernButton(center_x, HEIGHT // 2 + 110, btn_width, 60, "SPÄŤ", self.font_medium)
-
+        bw, bh = 300, 48
+        cx = WIDTH // 2 - bw // 2
+        cx_l = WIDTH // 2 - bw - 15
+        cx_r = WIDTH // 2 + 15
+        self.start_button = ModernButton(cx_l, 180, bw, bh, "START RACE", self.font_medium)
+        self.skins_button = ModernButton(cx_l, 236, bw, bh, "GARAZ", self.font_medium)
+        self.lootbox_button = ModernButton(cx_l, 292, bw, bh, "LOOTBOX", self.font_medium)
+        self.effects_button = ModernButton(cx_l, 348, bw, bh, "EFEKTY", self.font_medium)
+        self.equip_button = ModernButton(cx_r, 180, bw, bh, "VYBAVENIE", self.font_medium)
+        self.collection_button = ModernButton(cx_r, 236, bw, bh, "KOLEKCIA", self.font_medium)
+        self.host_button = ModernButton(cx_r, 292, bw, bh, "HOST GAME", self.font_medium)
+        self.join_button = ModernButton(cx_r, 348, bw, bh, "JOIN GAME", self.font_medium)
+        self.continue_button = ModernButton(cx, HEIGHT // 2 + 80, bw, bh, "POKRAČOVAŤ", self.font_medium)
+        self.setup_join_button = ModernButton(cx, HEIGHT // 2 + 40, bw, 60, "PRIPOJIŤ SA", self.font_medium)
+        self.setup_back_button = ModernButton(cx, HEIGHT // 2 + 110, bw, 60, "SPÄŤ", self.font_medium)
+        self.back_btn = ModernButton(cx, HEIGHT - 65, bw, 50, "SPÄŤ", self.font_medium)
+        self.buy_box_btn = ModernButton(cx, HEIGHT // 2 + 130, bw, 55, f"KÚPIŤ BOX ({LOOTBOX_COST}c)", self.font_medium)
+        self.buy_effect_btn = ModernButton(cx, HEIGHT // 2 + 130, bw, 55, f"KÚPIŤ BOX ({EFFECT_BOX_COST}c)", self.font_medium)
+        self.buy_coins_btn = ModernButton(cx, HEIGHT // 2 + 215, bw, 50, "KÚPIŤ MINCE", self.font_medium)
+        self.prev_btn = ModernButton(WIDTH // 2 - 320, HEIGHT // 2 - 30, 80, 80, "<", self.font_large)
+        self.next_btn = ModernButton(WIDTH // 2 + 240, HEIGHT // 2 - 30, 80, 80, ">", self.font_large)
+        self.select_btn = ModernButton(cx, HEIGHT // 2 + 180, bw, 55, "VYBRAŤ", self.font_medium)
+        self.paywall_close_btn = ModernButton(cx, HEIGHT - 60, bw, 50, "ZAVRIEŤ", self.font_medium)
+        self.paywall_buttons = []
         self.time_tracker = 0
+        self.lootbox_anim_frame = 0
+        self.lootbox_particles = []
+        self.lootbox_roulette_strip = []
+        self.lootbox_roulette_winner_idx = 0
+        self.lootbox_roulette_target_x = 0
 
     def draw_glass_panel(self, screen, rect, alpha=200, border=True):
         s = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
         s.fill((*UI_PANEL_BG, alpha))
         screen.blit(s, rect.topleft)
-
         if border:
-            pygame.draw.rect(screen, (255, 255, 255), rect, 1, border_radius=0)
-            corner_len = 20
-            pygame.draw.line(screen, UI_ACCENT, rect.topleft, (rect.x + corner_len, rect.y), 3)
-            pygame.draw.line(screen, UI_ACCENT, rect.topleft, (rect.x, rect.y + corner_len), 3)
-            pygame.draw.line(screen, UI_ACCENT, rect.bottomright, (rect.right - corner_len, rect.bottom), 3)
-            pygame.draw.line(screen, UI_ACCENT, rect.bottomright, (rect.right, rect.bottom - corner_len), 3)
+            pygame.draw.rect(screen, (255, 255, 255), rect, 1)
+            cl = 20
+            pygame.draw.line(screen, UI_ACCENT, rect.topleft, (rect.x + cl, rect.y), 3)
+            pygame.draw.line(screen, UI_ACCENT, rect.topleft, (rect.x, rect.y + cl), 3)
+            pygame.draw.line(screen, UI_ACCENT, rect.bottomright, (rect.right - cl, rect.bottom), 3)
+            pygame.draw.line(screen, UI_ACCENT, rect.bottomright, (rect.right, rect.bottom - cl), 3)
 
     def draw_glowing_text(self, screen, text, font, color, center_pos, glow_radius=2):
         glow_surf = font.render(text, True, color)
         for x in range(-glow_radius, glow_radius + 1):
             for y in range(-glow_radius, glow_radius + 1):
                 r = glow_surf.get_rect(center=(center_pos[0] + x, center_pos[1] + y))
-                s = glow_surf.copy()
-                s.set_alpha(30)
-                screen.blit(s, r)
-
+                s = glow_surf.copy(); s.set_alpha(30); screen.blit(s, r)
         main_surf = font.render(text, True, (255, 255, 255))
-        r = main_surf.get_rect(center=center_pos)
-        screen.blit(main_surf, r)
+        screen.blit(main_surf, main_surf.get_rect(center=center_pos))
 
     def draw_animated_bg(self, screen):
         self.time_tracker += 1
         screen.fill(UI_BG_DARK)
-
-        grid_spacing = 60
-        offset = (self.time_tracker * 0.5) % grid_spacing
-
-        for x in range(0, WIDTH, grid_spacing):
+        gs = 60
+        offset = (self.time_tracker * 0.5) % gs
+        for x in range(0, WIDTH, gs):
             pygame.draw.line(screen, (40, 40, 60), (x, 0), (x, HEIGHT))
+        for y in range(-gs, HEIGHT, gs):
+            dy = y + offset
+            a = min(255, int((dy / HEIGHT) * 50))
+            pygame.draw.line(screen, (40 + a//2, 40 + a//2, 60 + a), (0, dy), (WIDTH, dy))
 
-        for y in range(-grid_spacing, HEIGHT, grid_spacing):
-            draw_y = y + offset
-            alpha = min(255, int((draw_y / HEIGHT) * 50))
-            color = (40 + alpha // 2, 40 + alpha // 2, 60 + alpha)
-            pygame.draw.line(screen, color, (0, draw_y), (WIDTH, draw_y))
+    def _draw_car(self, screen, skin, cx, cy, scale=1.0):
+        w, h = int(PLAYER_WIDTH * scale), int(PLAYER_HEIGHT * scale)
+        x, y = cx, cy - h // 2
+        bc, sc, wc, hc = skin["body"], skin["spoiler"], skin["wing"], skin["helmet"]
+        pygame.draw.rect(screen, (20,20,20), (x-w//2-int(8*scale), y+h-int(60*scale), int(22*scale), int(40*scale)))
+        pygame.draw.rect(screen, (20,20,20), (x+w//2-int(14*scale), y+h-int(60*scale), int(22*scale), int(40*scale)))
+        pygame.draw.rect(screen, bc, (x-w//4, y+int(25*scale), w//2, h-int(40*scale)))
+        pygame.draw.polygon(screen, bc, [(x-w//4, y+int(25*scale)), (x+w//4, y+int(25*scale)), (x, y)])
+        pygame.draw.rect(screen, (20,20,20), (x-w//2-int(4*scale), y+int(25*scale), int(16*scale), int(28*scale)))
+        pygame.draw.rect(screen, (20,20,20), (x+w//2-int(12*scale), y+int(25*scale), int(16*scale), int(28*scale)))
+        pygame.draw.rect(screen, sc, (x-w//2, y+h-int(15*scale), w, int(15*scale)))
+        pygame.draw.rect(screen, wc, (x-w//3, y+int(10*scale), int(w//1.5), int(8*scale)))
+        pygame.draw.circle(screen, hc, (x, y+h//2+int(8*scale)), max(1, int(w//5)))
 
-    def draw_menu(self, screen, highscores, mouse_pos, mouse_clicked):
+    def draw_menu(self, screen, highscores, coins, mouse_pos, mouse_clicked):
         self.draw_animated_bg(screen)
+        shadow = self.font_title.render("F1 TURBO", True, (0,0,0))
+        screen.blit(shadow, shadow.get_rect(center=(WIDTH//2+5, 95)))
+        self.draw_glowing_text(screen, "F1 TURBO", self.font_title, UI_ACCENT, (WIDTH//2, 90), 4)
+        self.draw_text(screen, "ULTIMATE RACING EXPERIENCE", self.font_small, UI_TEXT_DIM, WIDTH//2, 145, center=True)
+        self.draw_text(screen, f"COINS: {coins}", self.font_tech, UI_GOLD, WIDTH-260, 145)
+        all_btns = [self.start_button, self.skins_button, self.lootbox_button, self.effects_button,
+                    self.equip_button, self.collection_button, self.host_button, self.join_button]
+        for b in all_btns:
+            b.update(mouse_pos); b.draw(screen)
+        pr = pygame.Rect(WIDTH//2-350, 420, 700, 135)
+        self.draw_glass_panel(screen, pr)
+        self.draw_text(screen, "TOP JAZDCi", self.font_medium, UI_GOLD, WIDTH//2, 437, center=True)
+        yo = 465
+        for i, e in enumerate(highscores[:3]):
+            c = UI_GOLD if i==0 else UI_TEXT_MAIN
+            self.draw_text(screen, f"{i+1}.", self.font_small, c, pr.x+150, yo)
+            self.draw_text(screen, e['name'][:12], self.font_small, UI_TEXT_DIM, pr.x+200, yo)
+            screen.blit(self.font_tech.render(f"{int(e['score']):05d}", True, UI_ACCENT), (pr.right-200, yo))
+            yo += 28
+        self.draw_text(screen, "[ TAB: TOP 20 ] [ ESC: PAUZA ] [ M: MUTE ]", self.font_tech, (80,80,100), WIDTH//2, HEIGHT-15, center=True)
+        if self.start_button.is_clicked(mouse_pos, mouse_clicked): return "single"
+        if self.skins_button.is_clicked(mouse_pos, mouse_clicked): return "skins"
+        if self.lootbox_button.is_clicked(mouse_pos, mouse_clicked): return "lootbox"
+        if self.effects_button.is_clicked(mouse_pos, mouse_clicked): return "effects"
+        if self.equip_button.is_clicked(mouse_pos, mouse_clicked): return "equip"
+        if self.collection_button.is_clicked(mouse_pos, mouse_clicked): return "collection"
+        if self.host_button.is_clicked(mouse_pos, mouse_clicked): return "host"
+        if self.join_button.is_clicked(mouse_pos, mouse_clicked): return "join"
+        return None
 
-        title_text = "F1 TURBO"
+    def draw_lootbox_shop(self, screen, coins, unlocked_count, total_count, mouse_pos, mouse_clicked,
+                           result_info=None, pity_epic=0, pity_legendary=0):
+        self.draw_animated_bg(screen)
+        self.draw_glowing_text(screen, "LOOTBOX", self.font_large, UI_GOLD, (WIDTH//2, 45), 3)
+        self.draw_text(screen, f"Tvoje mince: {coins}", self.font_medium, UI_GOLD, WIDTH//2, 95, center=True)
+        self.draw_text(screen, f"Odomknute: {unlocked_count}/{total_count}", self.font_small, UI_TEXT_DIM, WIDTH//2, 128, center=True)
+        pity_panel = pygame.Rect(WIDTH//2 - 180, 148, 360, 52)
+        self.draw_glass_panel(screen, pity_panel, 180)
+        ep_left = PITY_EPIC_THRESHOLD - pity_epic
+        leg_left = PITY_LEGENDARY_THRESHOLD - pity_legendary
+        self.draw_text(screen, f"Zaruceny EPICKY za: {ep_left} boxov", self.font_small, RARITY_COLORS[RARITY_EPIC], WIDTH//2, 157, center=True)
+        self.draw_text(screen, f"Zaruceny LEGENDARNY za: {leg_left} boxov", self.font_small, RARITY_COLORS[RARITY_LEGENDARY], WIDTH//2, 178, center=True)
+        pr = pygame.Rect(WIDTH//2-250, 210, 500, 220)
+        self.draw_glass_panel(screen, pr, 230)
+        bx, by = WIDTH//2, 305
+        pygame.draw.rect(screen, (60,50,30), (bx-50, by-40, 100, 80), border_radius=8)
+        pygame.draw.rect(screen, UI_GOLD, (bx-50, by-40, 100, 80), 3, border_radius=8)
+        pygame.draw.rect(screen, UI_GOLD, (bx-5, by-40, 10, 80))
+        pygame.draw.rect(screen, UI_GOLD, (bx-50, by-5, 100, 10))
+        q = self.font_large.render("?", True, UI_GOLD)
+        screen.blit(q, q.get_rect(center=(bx, by)))
+        self.draw_text(screen, f"Cena: {LOOTBOX_COST} minci", self.font_medium, UI_TEXT_MAIN, WIDTH//2, 380, center=True)
+        if result_info:
+            self._draw_lootbox_result(screen, result_info)
+        if not result_info:
+            can_buy = coins >= LOOTBOX_COST
+            self.buy_box_btn.update(mouse_pos); self.buy_box_btn.draw(screen)
+            if not can_buy:
+                self.draw_text(screen, "Nemas dostatok minci!", self.font_small, UI_WARNING, WIDTH//2, HEIGHT//2+200, center=True)
+            self.buy_coins_btn.update(mouse_pos); self.buy_coins_btn.draw(screen)
+            if self.buy_box_btn.is_clicked(mouse_pos, mouse_clicked) and can_buy: return "buy"
+            if self.buy_coins_btn.is_clicked(mouse_pos, mouse_clicked): return "paywall"
+        self.back_btn.update(mouse_pos); self.back_btn.draw(screen)
+        if self.back_btn.is_clicked(mouse_pos, mouse_clicked): return "back"
+        return None
 
-        shadow = self.font_title.render(title_text, True, (0, 0, 0))
-        s_rect = shadow.get_rect(center=(WIDTH // 2 + 5, 125))
-        screen.blit(shadow, s_rect)
+    def _draw_lootbox_result(self, screen, info):
+        import random as _rnd
+        self.lootbox_anim_frame += 1
+        af = self.lootbox_anim_frame
+        CARD_W, CARD_H, CARD_GAP = 90, 110, 6
+        CARD_STRIDE = CARD_W + CARD_GAP
+        SCROLL_FRAMES = 180
+        PAUSE_FRAMES = 30
+        REVEAL_FRAME = SCROLL_FRAMES + PAUSE_FRAMES
+        STRIP_SIZE = 50
+        WINNER_IDX = 42
+        rarity = info.get("rarity", RARITY_COMMON)
+        rarity_color = RARITY_COLORS.get(rarity, UI_TEXT_DIM)
+        if af == 1:
+            self.lootbox_particles = []
+            self.lootbox_roulette_strip = []
+            for _ in range(STRIP_SIZE):
+                self.lootbox_roulette_strip.append(_rnd.randint(0, len(CAR_SKINS) - 1))
+            self.lootbox_roulette_strip[WINNER_IDX] = info["skin_index"]
+            self.lootbox_roulette_winner_idx = WINNER_IDX
+            self.lootbox_roulette_target_x = WINNER_IDX * CARD_STRIDE + CARD_W // 2
+            if not info.get("is_new"):
+                for _ in range(20):
+                    angle = _rnd.uniform(0, 6.28)
+                    speed = _rnd.uniform(2, 6)
+                    self.lootbox_particles.append({"x": WIDTH//2, "y": HEIGHT//2, "vx": math.cos(angle)*speed, "vy": math.sin(angle)*speed-3, "life": _rnd.randint(40,80), "size": _rnd.randint(4,10)})
+        ov_alpha = min(230, af * 10)
+        ov = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        ov.fill((0, 0, 0, ov_alpha))
+        screen.blit(ov, (0, 0))
+        if af <= SCROLL_FRAMES + PAUSE_FRAMES:
+            if af <= SCROLL_FRAMES:
+                t = af / SCROLL_FRAMES
+                eased = 1.0 - (1.0 - t) ** 3
+            else:
+                eased = 1.0
+            scroll = eased * self.lootbox_roulette_target_x
+            vp_y = HEIGHT // 2 - CARD_H // 2 - 30
+            vp_h = CARD_H + 40
+            indicator_x = WIDTH // 2
+            vp_bg = pygame.Surface((WIDTH, vp_h), pygame.SRCALPHA)
+            vp_bg.fill((10, 12, 20, 220))
+            screen.blit(vp_bg, (0, vp_y))
+            pygame.draw.rect(screen, rarity_color, (0, vp_y, WIDTH, vp_h), 2)
+            for i, skin_idx in enumerate(self.lootbox_roulette_strip):
+                card_center_x = i * CARD_STRIDE + CARD_W // 2 - scroll + indicator_x
+                card_x = int(card_center_x - CARD_W // 2)
+                card_y = vp_y + 20
+                if card_x + CARD_W < -10 or card_x > WIDTH + 10: continue
+                skin = CAR_SKINS[skin_idx]
+                skin_rarity = skin.get("rarity", RARITY_COMMON)
+                rc = RARITY_COLORS.get(skin_rarity, UI_TEXT_DIM)
+                card_surf = pygame.Surface((CARD_W, CARD_H), pygame.SRCALPHA)
+                card_surf.fill((25, 30, 45, 240))
+                screen.blit(card_surf, (card_x, card_y))
+                pygame.draw.rect(screen, rc, (card_x, card_y, CARD_W, CARD_H), 2, border_radius=4)
+                rar_label = RARITY_LABELS.get(skin_rarity, "")
+                rl_surf = pygame.font.Font(None, 16).render(rar_label, True, rc)
+                screen.blit(rl_surf, rl_surf.get_rect(midtop=(card_x + CARD_W // 2, card_y + 4)))
+                self._draw_car(screen, skin, card_x + CARD_W // 2, card_y + 68, 0.5)
+                nm_surf = pygame.font.Font(None, 18).render(skin["name"][:10], True, UI_TEXT_MAIN)
+                screen.blit(nm_surf, nm_surf.get_rect(midbottom=(card_x + CARD_W // 2, card_y + CARD_H - 3)))
+            pygame.draw.line(screen, UI_GOLD, (indicator_x, vp_y - 5), (indicator_x, vp_y + vp_h + 5), 3)
+            pygame.draw.polygon(screen, UI_GOLD, [(indicator_x-8, vp_y-5), (indicator_x+8, vp_y-5), (indicator_x, vp_y+8)])
+            pygame.draw.polygon(screen, UI_GOLD, [(indicator_x-8, vp_y+vp_h+5), (indicator_x+8, vp_y+vp_h+5), (indicator_x, vp_y+vp_h-8)])
+            if af > SCROLL_FRAMES * 0.7:
+                win_cx = WINNER_IDX * CARD_STRIDE + CARD_W // 2 - scroll + indicator_x
+                win_x = int(win_cx - CARD_W // 2)
+                glow_a = int(80 * min(1.0, (af - SCROLL_FRAMES * 0.7) / (SCROLL_FRAMES * 0.3)))
+                glow_surf = pygame.Surface((CARD_W + 10, CARD_H + 10), pygame.SRCALPHA)
+                pygame.draw.rect(glow_surf, (*rarity_color, glow_a), glow_surf.get_rect(), border_radius=6)
+                screen.blit(glow_surf, (win_x - 5, vp_y + 15))
+            if af < SCROLL_FRAMES:
+                blink = abs(math.sin(af * 0.15))
+                ot_surf = self.font_medium.render("OTVARAM...", True, UI_GOLD)
+                ot_surf.set_alpha(int(255 * blink))
+                screen.blit(ot_surf, ot_surf.get_rect(center=(WIDTH // 2, vp_y - 30)))
+            else:
+                flash_a = int(200 + 55 * math.sin((af - SCROLL_FRAMES) * 0.5))
+                rar_surf = self.font_large.render(RARITY_LABELS.get(rarity, ""), True, rarity_color)
+                rar_surf.set_alpha(flash_a)
+                screen.blit(rar_surf, rar_surf.get_rect(center=(WIDTH // 2, vp_y - 30)))
+            return
+        reveal_af = af - REVEAL_FRAME
+        if reveal_af < 8:
+            flash_a = int(120 * (1.0 - reveal_af / 8))
+            flash_surf = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+            flash_surf.fill((*rarity_color, flash_a))
+            screen.blit(flash_surf, (0, 0))
+        pw, ph = 500, 340
+        pr = pygame.Rect(WIDTH // 2 - pw // 2, HEIGHT // 2 - ph // 2, pw, ph)
+        self.draw_glass_panel(screen, pr, 250)
+        pygame.draw.rect(screen, rarity_color, (pr.x, pr.y, pr.width, 4))
+        pulse = 0.5 + 0.5 * math.sin(reveal_af * 0.15)
+        if info.get("is_new"):
+            glow_r = int(3 + 2 * pulse)
+            self.draw_glowing_text(screen, "NOVY SKIN!", self.font_large, rarity_color, (WIDTH//2, pr.y+40), glow_r)
+            rar_surf = self.font_small.render(RARITY_LABELS.get(rarity, ""), True, rarity_color)
+            screen.blit(rar_surf, rar_surf.get_rect(center=(WIDTH//2, pr.y+80)))
+            skin = CAR_SKINS[info.get("skin_index", 0)]
+            name_y = pr.y + 115
+            name_surf = self.font_large.render(info.get("skin_name", ""), True, skin["body"])
+            name_glow = self.font_large.render(info.get("skin_name", ""), True, (min(255,skin["body"][0]+60), min(255,skin["body"][1]+60), min(255,skin["body"][2]+60)))
+            name_glow.set_alpha(int(100 + 80 * pulse))
+            screen.blit(name_glow, name_glow.get_rect(center=(WIDTH//2+2, name_y+2)))
+            screen.blit(name_surf, name_surf.get_rect(center=(WIDTH//2, name_y)))
+            if reveal_af > 5:
+                car_scale = min(2.0, (reveal_af - 5) * 0.12)
+                if car_scale > 0.3:
+                    self._draw_car(screen, skin, WIDTH//2, pr.y + int(ph*0.68), car_scale)
+            if reveal_af > 10 and rarity in (RARITY_EPIC, RARITY_LEGENDARY):
+                for i in range(6):
+                    sx = WIDTH//2 + int(90*math.sin(reveal_af*0.1+i*1.1))
+                    sy = pr.y + int(ph*0.6) + int(45*math.cos(reveal_af*0.12+i*1.4))
+                    spark_a = int(180*abs(math.sin(reveal_af*0.2+i)))
+                    spark_surf = pygame.Surface((8,8), pygame.SRCALPHA)
+                    pygame.draw.circle(spark_surf, (*rarity_color, spark_a), (4,4), 4)
+                    screen.blit(spark_surf, (sx, sy))
+        else:
+            glow_r = int(3 + 2 * pulse)
+            self.draw_glowing_text(screen, "DUPLIKAT!", self.font_large, UI_WARNING, (WIDTH//2, pr.y+40), glow_r)
+            rar_surf = self.font_small.render(RARITY_LABELS.get(rarity, ""), True, rarity_color)
+            screen.blit(rar_surf, rar_surf.get_rect(center=(WIDTH//2, pr.y+78)))
+            self.draw_text(screen, f"{info.get('skin_name','')} (uz mas)", self.font_medium, UI_TEXT_DIM, WIDTH//2, pr.y+110, center=True)
+            refund = info.get('refund', 0)
+            shown = int(refund * min(1.0, reveal_af/30)) if reveal_af < 35 else refund
+            refund_color = UI_GOLD
+            if reveal_af > 25:
+                flash = int(30*abs(math.sin(reveal_af*0.2)))
+                refund_color = (255, min(255,215+flash), flash)
+            refund_surf = self.font_large.render(f"+{shown} minci", True, refund_color)
+            screen.blit(refund_surf, refund_surf.get_rect(center=(WIDTH//2, pr.y+165)))
+            for p in self.lootbox_particles:
+                if p["life"] > 0:
+                    p["x"]+=p["vx"]; p["y"]+=p["vy"]; p["vy"]+=0.15; p["life"]-=1
+                    p_alpha = min(255, p["life"]*6)
+                    p_surf = pygame.Surface((p["size"]*2, p["size"]*2), pygame.SRCALPHA)
+                    pygame.draw.circle(p_surf, (255,215,0,p_alpha), (p["size"],p["size"]), p["size"])
+                    pygame.draw.circle(p_surf, (200,170,0,p_alpha), (p["size"],p["size"]), p["size"], 1)
+                    screen.blit(p_surf, (int(p["x"])-p["size"], int(p["y"])-p["size"]))
+            if reveal_af > 5:
+                coin_r = int(22+5*math.sin(reveal_af*0.2))
+                coin_x, coin_y = WIDTH//2, pr.y+240
+                glow_surf = pygame.Surface((coin_r*4, coin_r*4), pygame.SRCALPHA)
+                glow_a = int(60*pulse)
+                pygame.draw.circle(glow_surf, (255,215,0,glow_a), (coin_r*2, coin_r*2), coin_r*2)
+                screen.blit(glow_surf, (coin_x-coin_r*2, coin_y-coin_r*2))
+                pygame.draw.circle(screen, UI_GOLD, (coin_x, coin_y), coin_r)
+                pygame.draw.circle(screen, (200,170,0), (coin_x, coin_y), coin_r, 3)
+                dollar_font = pygame.font.Font(None, coin_r+4)
+                dt = dollar_font.render("$", True, (180,150,0))
+                screen.blit(dt, dt.get_rect(center=(coin_x, coin_y+1)))
+        if reveal_af > 25:
+            blink = abs(math.sin(reveal_af * 0.08))
+            cont_surf = self.font_small.render("Klikni pre pokracovanie", True, UI_TEXT_DIM)
+            cont_surf.set_alpha(int(255 * blink))
+            screen.blit(cont_surf, cont_surf.get_rect(center=(WIDTH//2, pr.bottom-25)))
 
-        logo_center = (WIDTH // 2, 120)
-        self.draw_glowing_text(screen, title_text, self.font_title, UI_ACCENT, logo_center, glow_radius=4)
+    def draw_effects_shop(self, screen, coins, unlocked_count, total_count, mouse_pos, mouse_clicked,
+                          result_info=None, pity_epic=0, pity_legendary=0):
+        self.draw_animated_bg(screen)
+        theme = (180, 60, 255)
+        self.draw_glowing_text(screen, "EFEKTY", self.font_large, theme, (WIDTH//2, 45), 3)
+        self.draw_text(screen, f"Tvoje mince: {coins}", self.font_medium, UI_GOLD, WIDTH//2, 95, center=True)
+        self.draw_text(screen, f"Odomknute: {unlocked_count}/{total_count}", self.font_small, UI_TEXT_DIM, WIDTH//2, 128, center=True)
+        pity_panel = pygame.Rect(WIDTH//2-180, 148, 360, 52)
+        self.draw_glass_panel(screen, pity_panel, 180)
+        ep_left = PITY_EPIC_THRESHOLD - pity_epic
+        leg_left = PITY_LEGENDARY_THRESHOLD - pity_legendary
+        self.draw_text(screen, f"Zaruceny EPICKY za: {ep_left} boxov", self.font_small, RARITY_COLORS[RARITY_EPIC], WIDTH//2, 157, center=True)
+        self.draw_text(screen, f"Zaruceny LEGENDARNY za: {leg_left} boxov", self.font_small, RARITY_COLORS[RARITY_LEGENDARY], WIDTH//2, 178, center=True)
+        pr = pygame.Rect(WIDTH//2-250, 210, 500, 220)
+        self.draw_glass_panel(screen, pr, 230)
+        bx, by = WIDTH//2, 305
+        pygame.draw.rect(screen, (40, 30, 60), (bx-50, by-40, 100, 80), border_radius=8)
+        pygame.draw.rect(screen, theme, (bx-50, by-40, 100, 80), 3, border_radius=8)
+        pygame.draw.rect(screen, theme, (bx-5, by-40, 10, 80))
+        pygame.draw.rect(screen, theme, (bx-50, by-5, 100, 10))
+        star_font = pygame.font.Font(None, 50)
+        star_surf = star_font.render("*", True, theme)
+        screen.blit(star_surf, star_surf.get_rect(center=(bx, by)))
+        self.draw_text(screen, f"Cena: {EFFECT_BOX_COST} minci", self.font_medium, UI_TEXT_MAIN, WIDTH//2, 380, center=True)
+        if result_info:
+            self._draw_effect_result(screen, result_info)
+        if not result_info:
+            can_buy = coins >= EFFECT_BOX_COST
+            self.buy_effect_btn.update(mouse_pos); self.buy_effect_btn.draw(screen)
+            if not can_buy:
+                self.draw_text(screen, "Nemas dostatok minci!", self.font_small, UI_WARNING, WIDTH//2, HEIGHT//2+200, center=True)
+            self.buy_coins_btn.update(mouse_pos); self.buy_coins_btn.draw(screen)
+            if self.buy_effect_btn.is_clicked(mouse_pos, mouse_clicked) and can_buy: return "buy"
+            if self.buy_coins_btn.is_clicked(mouse_pos, mouse_clicked): return "paywall"
+        self.back_btn.update(mouse_pos); self.back_btn.draw(screen)
+        if self.back_btn.is_clicked(mouse_pos, mouse_clicked): return "back"
+        return None
 
-        self.draw_text(screen, "ULTIMATE RACING EXPERIENCE", self.font_small, UI_TEXT_DIM, WIDTH // 2, 180, center=True)
+    def _draw_effect_result(self, screen, info):
+        import random as _rnd
+        self.lootbox_anim_frame += 1
+        af = self.lootbox_anim_frame
+        CARD_W, CARD_H, CARD_GAP = 90, 110, 6
+        CARD_STRIDE = CARD_W + CARD_GAP
+        SCROLL_FRAMES = 180
+        PAUSE_FRAMES = 30
+        REVEAL_FRAME = SCROLL_FRAMES + PAUSE_FRAMES
+        STRIP_SIZE = 50
+        WINNER_IDX = 42
+        rarity = info.get("rarity", RARITY_COMMON)
+        rarity_color = RARITY_COLORS.get(rarity, UI_TEXT_DIM)
+        if af == 1:
+            self.lootbox_particles = []
+            self.lootbox_roulette_strip = []
+            for _ in range(STRIP_SIZE):
+                self.lootbox_roulette_strip.append(_rnd.randint(0, len(EFFECTS) - 1))
+            self.lootbox_roulette_strip[WINNER_IDX] = info["effect_index"]
+            self.lootbox_roulette_target_x = WINNER_IDX * CARD_STRIDE + CARD_W // 2
+            if not info.get("is_new"):
+                for _ in range(20):
+                    angle = _rnd.uniform(0, 6.28)
+                    speed = _rnd.uniform(2, 6)
+                    self.lootbox_particles.append({"x": WIDTH//2, "y": HEIGHT//2, "vx": math.cos(angle)*speed, "vy": math.sin(angle)*speed-3, "life": _rnd.randint(40,80), "size": _rnd.randint(4,10)})
+        ov_alpha = min(230, af * 10)
+        ov = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        ov.fill((0, 0, 0, ov_alpha))
+        screen.blit(ov, (0, 0))
+        if af <= SCROLL_FRAMES + PAUSE_FRAMES:
+            t = af / SCROLL_FRAMES if af <= SCROLL_FRAMES else 1.0
+            eased = 1.0 - (1.0 - t) ** 3
+            scroll = eased * self.lootbox_roulette_target_x
+            vp_y = HEIGHT // 2 - CARD_H // 2 - 30
+            vp_h = CARD_H + 40
+            indicator_x = WIDTH // 2
+            vp_bg = pygame.Surface((WIDTH, vp_h), pygame.SRCALPHA)
+            vp_bg.fill((10, 12, 20, 220))
+            screen.blit(vp_bg, (0, vp_y))
+            pygame.draw.rect(screen, rarity_color, (0, vp_y, WIDTH, vp_h), 2)
+            for i, eff_idx in enumerate(self.lootbox_roulette_strip):
+                card_center_x = i * CARD_STRIDE + CARD_W // 2 - scroll + indicator_x
+                card_x = int(card_center_x - CARD_W // 2)
+                card_y = vp_y + 20
+                if card_x + CARD_W < -10 or card_x > WIDTH + 10: continue
+                eff = EFFECTS[eff_idx]
+                eff_rarity = eff.get("rarity", RARITY_COMMON)
+                rc = RARITY_COLORS.get(eff_rarity, UI_TEXT_DIM)
+                card_surf = pygame.Surface((CARD_W, CARD_H), pygame.SRCALPHA)
+                card_surf.fill((25, 30, 45, 240))
+                screen.blit(card_surf, (card_x, card_y))
+                pygame.draw.rect(screen, rc, (card_x, card_y, CARD_W, CARD_H), 2, border_radius=4)
+                rar_label = RARITY_LABELS.get(eff_rarity, "")
+                rl_surf = pygame.font.Font(None, 16).render(rar_label, True, rc)
+                screen.blit(rl_surf, rl_surf.get_rect(midtop=(card_x+CARD_W//2, card_y+4)))
+                type_label = EFFECT_TYPE_LABELS.get(eff["type"], "")
+                tl_surf = pygame.font.Font(None, 18).render(type_label, True, UI_TEXT_DIM)
+                screen.blit(tl_surf, tl_surf.get_rect(center=(card_x+CARD_W//2, card_y+45)))
+                pygame.draw.circle(screen, eff["color"], (card_x+CARD_W//2, card_y+72), 16)
+                pygame.draw.circle(screen, (255,255,255), (card_x+CARD_W//2, card_y+72), 16, 2)
+                nm_surf = pygame.font.Font(None, 16).render(eff["name"][:10], True, UI_TEXT_MAIN)
+                screen.blit(nm_surf, nm_surf.get_rect(midbottom=(card_x+CARD_W//2, card_y+CARD_H-3)))
+            pygame.draw.line(screen, UI_GOLD, (indicator_x, vp_y-5), (indicator_x, vp_y+vp_h+5), 3)
+            pygame.draw.polygon(screen, UI_GOLD, [(indicator_x-8,vp_y-5),(indicator_x+8,vp_y-5),(indicator_x,vp_y+8)])
+            pygame.draw.polygon(screen, UI_GOLD, [(indicator_x-8,vp_y+vp_h+5),(indicator_x+8,vp_y+vp_h+5),(indicator_x,vp_y+vp_h-8)])
+            if af > SCROLL_FRAMES * 0.7:
+                win_cx = WINNER_IDX * CARD_STRIDE + CARD_W // 2 - scroll + indicator_x
+                win_x = int(win_cx - CARD_W // 2)
+                glow_a = int(80 * min(1.0, (af - SCROLL_FRAMES*0.7)/(SCROLL_FRAMES*0.3)))
+                glow_surf = pygame.Surface((CARD_W+10, CARD_H+10), pygame.SRCALPHA)
+                pygame.draw.rect(glow_surf, (*rarity_color, glow_a), glow_surf.get_rect(), border_radius=6)
+                screen.blit(glow_surf, (win_x-5, vp_y+15))
+            if af < SCROLL_FRAMES:
+                blink = abs(math.sin(af * 0.15))
+                ot_surf = self.font_medium.render("OTVARAM...", True, (180, 60, 255))
+                ot_surf.set_alpha(int(255 * blink))
+                screen.blit(ot_surf, ot_surf.get_rect(center=(WIDTH//2, vp_y-30)))
+            else:
+                flash_a = int(200+55*math.sin((af-SCROLL_FRAMES)*0.5))
+                rar_surf = self.font_large.render(RARITY_LABELS.get(rarity, ""), True, rarity_color)
+                rar_surf.set_alpha(flash_a)
+                screen.blit(rar_surf, rar_surf.get_rect(center=(WIDTH//2, vp_y-30)))
+            return
+        reveal_af = af - REVEAL_FRAME
+        if reveal_af < 8:
+            flash_a = int(120*(1.0-reveal_af/8))
+            flash_surf = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+            flash_surf.fill((*rarity_color, flash_a))
+            screen.blit(flash_surf, (0, 0))
+        pw, ph = 500, 340
+        pr = pygame.Rect(WIDTH//2-pw//2, HEIGHT//2-ph//2, pw, ph)
+        self.draw_glass_panel(screen, pr, 250)
+        pygame.draw.rect(screen, rarity_color, (pr.x, pr.y, pr.width, 4))
+        pulse = 0.5 + 0.5 * math.sin(reveal_af * 0.15)
+        eff_color = info.get("color", (255,255,255))
+        if info.get("is_new"):
+            glow_r = int(3 + 2 * pulse)
+            self.draw_glowing_text(screen, "NOVY EFEKT!", self.font_large, rarity_color, (WIDTH//2, pr.y+40), glow_r)
+            rar_surf = self.font_small.render(RARITY_LABELS.get(rarity, ""), True, rarity_color)
+            screen.blit(rar_surf, rar_surf.get_rect(center=(WIDTH//2, pr.y+80)))
+            type_label = EFFECT_TYPE_LABELS.get(info.get("effect_type",""), "")
+            self.draw_text(screen, type_label, self.font_medium, UI_TEXT_DIM, WIDTH//2, pr.y+110, center=True)
+            name_surf = self.font_large.render(info.get("effect_name", ""), True, eff_color)
+            name_glow = self.font_large.render(info.get("effect_name", ""), True, (min(255,eff_color[0]+60), min(255,eff_color[1]+60), min(255,eff_color[2]+60)))
+            name_glow.set_alpha(int(100+80*pulse))
+            screen.blit(name_glow, name_glow.get_rect(center=(WIDTH//2+2, pr.y+152)))
+            screen.blit(name_surf, name_surf.get_rect(center=(WIDTH//2, pr.y+150)))
+            if reveal_af > 5:
+                cr = int(30 + 10*math.sin(reveal_af*0.15))
+                pygame.draw.circle(screen, eff_color, (WIDTH//2, pr.y+230), cr)
+                pygame.draw.circle(screen, (255,255,255), (WIDTH//2, pr.y+230), cr, 3)
+        else:
+            glow_r = int(3 + 2 * pulse)
+            self.draw_glowing_text(screen, "DUPLIKAT!", self.font_large, UI_WARNING, (WIDTH//2, pr.y+40), glow_r)
+            rar_surf = self.font_small.render(RARITY_LABELS.get(rarity, ""), True, rarity_color)
+            screen.blit(rar_surf, rar_surf.get_rect(center=(WIDTH//2, pr.y+78)))
+            self.draw_text(screen, f"{info.get('effect_name','')} (uz mas)", self.font_medium, UI_TEXT_DIM, WIDTH//2, pr.y+110, center=True)
+            refund = info.get('refund', 0)
+            shown = int(refund*min(1.0, reveal_af/30)) if reveal_af < 35 else refund
+            refund_color = UI_GOLD
+            if reveal_af > 25:
+                flash = int(30*abs(math.sin(reveal_af*0.2)))
+                refund_color = (255, min(255,215+flash), flash)
+            refund_surf = self.font_large.render(f"+{shown} minci", True, refund_color)
+            screen.blit(refund_surf, refund_surf.get_rect(center=(WIDTH//2, pr.y+165)))
+            for p in self.lootbox_particles:
+                if p["life"] > 0:
+                    p["x"]+=p["vx"]; p["y"]+=p["vy"]; p["vy"]+=0.15; p["life"]-=1
+                    p_alpha = min(255, p["life"]*6)
+                    p_surf = pygame.Surface((p["size"]*2, p["size"]*2), pygame.SRCALPHA)
+                    pygame.draw.circle(p_surf, (255,215,0,p_alpha), (p["size"],p["size"]), p["size"])
+                    screen.blit(p_surf, (int(p["x"])-p["size"], int(p["y"])-p["size"]))
+        if reveal_af > 25:
+            blink = abs(math.sin(reveal_af * 0.08))
+            cont_surf = self.font_small.render("Klikni pre pokracovanie", True, UI_TEXT_DIM)
+            cont_surf.set_alpha(int(255 * blink))
+            screen.blit(cont_surf, cont_surf.get_rect(center=(WIDTH//2, pr.bottom-25)))
 
-        self.start_button.update(mouse_pos)
-        self.start_button.draw(screen)
+    def draw_equip_effects(self, screen, unlocked_effects, equipped_effects, category, mouse_pos, mouse_clicked):
+        self.draw_animated_bg(screen)
+        self.draw_glowing_text(screen, "VYBAVENIE", self.font_large, UI_ACCENT, (WIDTH//2, 45), 3)
+        types = list(EFFECT_TYPE_LABELS.keys())
+        cat_type = types[category % len(types)]
+        cat_label = EFFECT_TYPE_LABELS[cat_type]
+        self.draw_text(screen, f"< {cat_label} >", self.font_large, UI_GOLD, WIDTH//2, 100, center=True)
+        cat_effects = [(i, e) for i, e in enumerate(EFFECTS) if e["type"] == cat_type]
+        card_w, card_h = 200, 120
+        gap = 16
+        grid_w = 2 * card_w + gap
+        grid_x = WIDTH // 2 - grid_w // 2
+        grid_y = 160
+        equipped_idx = equipped_effects.get(cat_type)
+        for idx, (ei, eff) in enumerate(cat_effects):
+            col = idx % 2
+            row = idx // 2
+            cx = grid_x + col * (card_w + gap)
+            cy = grid_y + row * (card_h + gap)
+            is_unlocked = ei in unlocked_effects
+            is_equipped = equipped_idx == ei
+            rarity = eff.get("rarity", RARITY_COMMON)
+            rc = RARITY_COLORS.get(rarity, UI_TEXT_DIM)
+            card_rect = pygame.Rect(cx, cy, card_w, card_h)
+            card_surf = pygame.Surface((card_w, card_h), pygame.SRCALPHA)
+            if is_equipped:
+                card_surf.fill((40, 60, 40, 240))
+            elif is_unlocked:
+                card_surf.fill((30, 35, 55, 240))
+            else:
+                card_surf.fill((15, 15, 22, 240))
+            screen.blit(card_surf, (cx, cy))
+            border_c = UI_ACCENT if is_equipped else (rc if is_unlocked else (50, 50, 60))
+            pygame.draw.rect(screen, border_c, card_rect, 2 if not is_equipped else 3, border_radius=6)
+            pygame.draw.circle(screen, eff["color"] if is_unlocked else (40,40,50), (cx+30, cy+40), 18)
+            pygame.draw.circle(screen, (255,255,255) if is_unlocked else (60,60,70), (cx+30, cy+40), 18, 2)
+            rar_label = RARITY_LABELS.get(rarity, "")
+            rl_surf = pygame.font.Font(None, 16).render(rar_label, True, rc if is_unlocked else (60,60,80))
+            screen.blit(rl_surf, rl_surf.get_rect(midtop=(cx+card_w//2+15, cy+5)))
+            name_c = UI_TEXT_MAIN if is_unlocked else UI_TEXT_DIM
+            nm_surf = pygame.font.Font(None, 22).render(eff["name"], True, name_c)
+            screen.blit(nm_surf, nm_surf.get_rect(midleft=(cx+58, cy+42)))
+            if is_equipped:
+                eq_surf = pygame.font.Font(None, 18).render("AKTIVNY", True, UI_ACCENT)
+                screen.blit(eq_surf, eq_surf.get_rect(midbottom=(cx+card_w//2, cy+card_h-8)))
+            elif not is_unlocked:
+                lk_surf = pygame.font.Font(None, 18).render("ZAMKNUTY", True, (70,70,90))
+                screen.blit(lk_surf, lk_surf.get_rect(midbottom=(cx+card_w//2, cy+card_h-8)))
+        bw, bh = 120, 45
+        nav_y = HEIGHT - 130
+        prev_cat_btn = ModernButton(WIDTH//2-bw-80, nav_y, bw, bh, "< SPAT", self.font_small)
+        next_cat_btn = ModernButton(WIDTH//2+80, nav_y, bw, bh, "DALEJ >", self.font_small)
+        prev_cat_btn.update(mouse_pos); prev_cat_btn.draw(screen)
+        next_cat_btn.update(mouse_pos); next_cat_btn.draw(screen)
+        if prev_cat_btn.is_clicked(mouse_pos, mouse_clicked): return "prev_cat"
+        if next_cat_btn.is_clicked(mouse_pos, mouse_clicked): return "next_cat"
+        for idx, (ei, eff) in enumerate(cat_effects):
+            col = idx % 2
+            row = idx // 2
+            cx = grid_x + col * (card_w + gap)
+            cy = grid_y + row * (card_h + gap)
+            is_unlocked = ei in unlocked_effects
+            is_equipped = equipped_idx == ei
+            if not is_unlocked:
+                continue
+            btn_y = cy + card_h - 30
+            btn_w, btn_h = 80, 24
+            if is_equipped:
+                btn = ModernButton(cx + card_w - btn_w - 5, btn_y, btn_w, btn_h, "ZRUSIT", pygame.font.Font(None, 18))
+                btn.update(mouse_pos); btn.draw(screen)
+                if btn.is_clicked(mouse_pos, mouse_clicked): return f"unequip_{cat_type}"
+            else:
+                btn = ModernButton(cx + card_w - btn_w - 5, btn_y, btn_w, btn_h, "NASADIT", pygame.font.Font(None, 18))
+                btn.update(mouse_pos); btn.draw(screen)
+                if btn.is_clicked(mouse_pos, mouse_clicked): return f"equip_{ei}"
+        self.back_btn.update(mouse_pos); self.back_btn.draw(screen)
+        if self.back_btn.is_clicked(mouse_pos, mouse_clicked): return "back"
+        return None
 
-        self.host_button.update(mouse_pos)
-        self.host_button.draw(screen)
+    def draw_paywall(self, screen, coins, mouse_pos, mouse_clicked):
+        ov = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA); ov.fill((0,0,0,230)); screen.blit(ov, (0,0))
+        panel = pygame.Rect(WIDTH//2-350, 20, 700, 700)
+        self.draw_glass_panel(screen, panel, 250)
+        self.draw_glowing_text(screen, "OBCHOD S MINCAMI", self.font_large, UI_GOLD, (WIDTH//2, 75), 3)
+        self.draw_text(screen, f"Tvoj zostatok: {coins} minci", self.font_medium, UI_TEXT_MAIN, WIDTH//2, 120, center=True)
+        pw, ph, sy, gap, cx = 300, 75, 145, 18, WIDTH//2
+        self.paywall_buttons = []
+        for i, pkg in enumerate(COIN_PACKAGES):
+            py = sy + i * (ph + gap)
+            pkg_rect = pygame.Rect(cx - pw//2, py, pw, ph)
+            popular = pkg["name"] == "POPULAR"
+            admin_pkg = pkg.get("admin", False)
+            cs = pygame.Surface((pw, ph), pygame.SRCALPHA)
+            if admin_pkg: cs.fill((80,30,80,255))
+            elif popular: cs.fill((50,70,40,255))
+            else: cs.fill((30,35,50,255))
+            screen.blit(cs, pkg_rect.topleft)
+            bc = (200,100,255) if admin_pkg else UI_GOLD if popular else UI_ACCENT
+            pygame.draw.rect(screen, bc, pkg_rect, 2, border_radius=8)
+            if popular:
+                badge = self.font_small.render("NAJLEPSIA PONUKA", True, UI_GOLD)
+                screen.blit(badge, badge.get_rect(midtop=(cx, py+2)))
+            if admin_pkg:
+                badge = self.font_small.render("SPECIALNE PRE ADAMA", True, (200,100,255))
+                screen.blit(badge, badge.get_rect(midtop=(cx, py+2)))
+            name_y = py + (22 if (popular or admin_pkg) else 6)
+            coins_y = name_y + 26
+            self.draw_text(screen, pkg["name"], self.font_medium, UI_TEXT_MAIN, pkg_rect.x+20, name_y)
+            self.draw_text(screen, f"{pkg['coins']} minci", self.font_small, UI_GOLD, pkg_rect.x+50, coins_y)
+            icon_y = coins_y + 10
+            pygame.draw.circle(screen, UI_GOLD, (pkg_rect.x+30, icon_y), 9)
+            pygame.draw.circle(screen, (200,170,0), (pkg_rect.x+30, icon_y), 9, 2)
+            ps = self.font_medium.render(pkg["price"], True, UI_ACCENT if not admin_pkg else (200,100,255))
+            screen.blit(ps, ps.get_rect(midright=(pkg_rect.right-15, py+ph//2)))
+            btn = ModernButton(pkg_rect.x, pkg_rect.y, pkg_rect.width, pkg_rect.height, "", self.font_small)
+            btn.update(mouse_pos)
+            self.paywall_buttons.append(btn)
+        last_pkg_bottom = sy + (len(COIN_PACKAGES)-1)*(ph+gap)+ph
+        self.draw_text(screen, "DEMO - platby nie su aktivne", self.font_small, UI_WARNING, WIDTH//2, last_pkg_bottom+15, center=True)
+        self.draw_text(screen, "Mince ziskavas hranim a zbieranim na trati!", self.font_small, UI_TEXT_DIM, WIDTH//2, last_pkg_bottom+38, center=True)
+        self.paywall_close_btn.update(mouse_pos); self.paywall_close_btn.draw(screen)
+        if self.paywall_close_btn.is_clicked(mouse_pos, mouse_clicked): return "close"
+        for i, btn in enumerate(self.paywall_buttons):
+            if btn.is_clicked(mouse_pos, mouse_clicked): return f"pkg_{i}"
+        return None
 
-        self.join_button.update(mouse_pos)
-        self.join_button.draw(screen)
-
-        panel_rect = pygame.Rect(WIDTH // 2 - 350, 560, 700, 180)
-        self.draw_glass_panel(screen, panel_rect)
-
-        self.draw_text(screen, "TOP JAZDCI", self.font_medium, UI_GOLD, WIDTH // 2, 590, center=True)
-
-        y_off = 620
-        for i, entry in enumerate(highscores[:4]):
-            color = UI_GOLD if i == 0 else UI_TEXT_MAIN
-            name = entry['name'][:12]
-            score_val = int(entry['score'])
-            score = f"{score_val:05d}"
-
-            self.draw_text(screen, f"{i + 1}.", self.font_small, color, panel_rect.x + 150, y_off)
-            self.draw_text(screen, name, self.font_small, UI_TEXT_DIM, panel_rect.x + 200, y_off)
-
-            score_surf = self.font_tech.render(score, True, UI_ACCENT)
-            screen.blit(score_surf, (panel_rect.right - 200, y_off))
-
-            y_off += 35
-
-        # UPRAVENÁ NÁPOVEDA PRE ŠÍPKY
-        keys_info = "[ TAB: TOP 20 ] [ ESC: PAUZA ] [ M: MUTE ] [ ŠÍPKY HORE/DOLE: HLASITOSŤ ]"
-        self.draw_text(screen, keys_info, self.font_tech, (80, 80, 100), WIDTH // 2, HEIGHT - 30, center=True)
-
-        if self.start_button.is_clicked(mouse_pos, mouse_clicked):
-            return "single"
-        if self.host_button.is_clicked(mouse_pos, mouse_clicked):
-            return "host"
-        if self.join_button.is_clicked(mouse_pos, mouse_clicked):
-            return "join"
+    def draw_skin_selector(self, screen, skin_index, unlocked_skins, mouse_pos, mouse_clicked):
+        self.draw_animated_bg(screen)
+        self.draw_glowing_text(screen, "GARAZ", self.font_large, UI_ACCENT, (WIDTH//2, 50), 3)
+        ul = sorted(unlocked_skins) if unlocked_skins else [0]
+        cp = 0
+        for i, idx in enumerate(ul):
+            if idx == skin_index: cp = i; break
+        ai = ul[cp]; skin = CAR_SKINS[ai]
+        panel = pygame.Rect(WIDTH//2-250, 90, 500, 420)
+        self.draw_glass_panel(screen, panel, 230)
+        self.draw_text(screen, skin["name"], self.font_large, skin["body"], WIDTH//2, 140, center=True)
+        self._draw_car(screen, skin, WIDTH//2, 310, 2.5)
+        self.draw_text(screen, f"{cp+1} / {len(ul)}", self.font_small, UI_TEXT_DIM, WIDTH//2, 500, center=True)
+        locked = len(CAR_SKINS) - len(unlocked_skins)
+        if locked > 0:
+            self.draw_text(screen, f"Zamknute: {locked} skinov (kup si lootbox!)", self.font_small, UI_TEXT_DIM, WIDTH//2, 530, center=True)
+        self.prev_btn.update(mouse_pos); self.prev_btn.draw(screen)
+        self.next_btn.update(mouse_pos); self.next_btn.draw(screen)
+        self.select_btn.update(mouse_pos); self.select_btn.draw(screen)
+        self.back_btn.update(mouse_pos); self.back_btn.draw(screen)
+        if self.prev_btn.is_clicked(mouse_pos, mouse_clicked): return "prev"
+        if self.next_btn.is_clicked(mouse_pos, mouse_clicked): return "next"
+        if self.select_btn.is_clicked(mouse_pos, mouse_clicked): return "select"
+        if self.back_btn.is_clicked(mouse_pos, mouse_clicked): return "back"
         return None
 
     def draw_multiplayer_setup(self, screen, title, prompt, current_text, mouse_pos, mouse_clicked):
-        overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 220))
-        screen.blit(overlay, (0, 0))
-
-        panel_rect = pygame.Rect(WIDTH // 2 - 360, HEIGHT // 2 - 180, 720, 500)
-        self.draw_glass_panel(screen, panel_rect, alpha=235)
-
-        self.draw_text(screen, title, self.font_large, UI_ACCENT, WIDTH // 2, panel_rect.y + 70, center=True)
-        self.draw_text(screen, prompt, self.font_medium, UI_TEXT_MAIN, WIDTH // 2, panel_rect.y + 150, center=True)
-        self.draw_text(screen, "Podpora formátu: 192.168.0.100 alebo 10.0.0.5", self.font_small, UI_TEXT_DIM,
-                       WIDTH // 2, panel_rect.y + 190, center=True)
-
-        input_rect = pygame.Rect(WIDTH // 2 - 260, panel_rect.y + 220, 520, 60)
-        pygame.draw.rect(screen, (0, 0, 0), input_rect, border_radius=10)
-        pygame.draw.rect(screen, UI_ACCENT, input_rect, 3, border_radius=10)
-
-        cursor = "_" if (pygame.time.get_ticks() // 500) % 2 == 0 else ""
-        displayed = current_text if len(current_text) > 0 else "IP hostiteľa..."
-        text_color = UI_TEXT_MAIN if len(current_text) > 0 else UI_TEXT_DIM
-        text_surf = self.font_medium.render(displayed + cursor, True, text_color)
-        screen.blit(text_surf, (input_rect.x + 20, input_rect.y + 15))
-
-        # Position buttons below the input field
-        self.setup_join_button.rect.center = (WIDTH // 2, input_rect.y + 80 + 30)
-        self.setup_back_button.rect.center = (WIDTH // 2, input_rect.y + 150 + 30)
-
-        self.setup_join_button.update(mouse_pos)
-        self.setup_join_button.draw(screen)
-        self.setup_back_button.update(mouse_pos)
-        self.setup_back_button.draw(screen)
-
-        if self.setup_join_button.is_clicked(mouse_pos, mouse_clicked):
-            return "join"
-        if self.setup_back_button.is_clicked(mouse_pos, mouse_clicked):
-            return "back"
+        ov = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA); ov.fill((0,0,0,220)); screen.blit(ov, (0,0))
+        pr = pygame.Rect(WIDTH//2-360, HEIGHT//2-180, 720, 500)
+        self.draw_glass_panel(screen, pr, 235)
+        self.draw_text(screen, title, self.font_large, UI_ACCENT, WIDTH//2, pr.y+70, center=True)
+        self.draw_text(screen, prompt, self.font_medium, UI_TEXT_MAIN, WIDTH//2, pr.y+150, center=True)
+        self.draw_text(screen, "Podpora formatu: 192.168.0.100 alebo 10.0.0.5", self.font_small, UI_TEXT_DIM, WIDTH//2, pr.y+190, center=True)
+        ir = pygame.Rect(WIDTH//2-260, pr.y+220, 520, 60)
+        pygame.draw.rect(screen, (0,0,0), ir, border_radius=10)
+        pygame.draw.rect(screen, UI_ACCENT, ir, 3, border_radius=10)
+        cursor = "_" if (pygame.time.get_ticks()//500)%2==0 else ""
+        d = current_text if current_text else "IP hostitela..."
+        tc = UI_TEXT_MAIN if current_text else UI_TEXT_DIM
+        screen.blit(self.font_medium.render(d+cursor, True, tc), (ir.x+20, ir.y+15))
+        self.setup_join_button.rect.center = (WIDTH//2, ir.y+80+30)
+        self.setup_back_button.rect.center = (WIDTH//2, ir.y+150+30)
+        self.setup_join_button.update(mouse_pos); self.setup_join_button.draw(screen)
+        self.setup_back_button.update(mouse_pos); self.setup_back_button.draw(screen)
+        if self.setup_join_button.is_clicked(mouse_pos, mouse_clicked): return "join"
+        if self.setup_back_button.is_clicked(mouse_pos, mouse_clicked): return "back"
         return None
 
     def draw_connection_status(self, screen, title, status, details=None):
-        overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 220))
-        screen.blit(overlay, (0, 0))
-
-        panel_rect = pygame.Rect(WIDTH // 2 - 360, HEIGHT // 2 - 180, 720, 360)
-        self.draw_glass_panel(screen, panel_rect, alpha=235)
-
-        self.draw_text(screen, title, self.font_large, UI_ACCENT, WIDTH // 2, panel_rect.y + 80, center=True)
-        self.draw_text(screen, status, self.font_medium, UI_TEXT_MAIN, WIDTH // 2, panel_rect.y + 170, center=True)
+        ov = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA); ov.fill((0,0,0,220)); screen.blit(ov, (0,0))
+        pr = pygame.Rect(WIDTH//2-360, HEIGHT//2-180, 720, 360)
+        self.draw_glass_panel(screen, pr, 235)
+        self.draw_text(screen, title, self.font_large, UI_ACCENT, WIDTH//2, pr.y+80, center=True)
+        self.draw_text(screen, status, self.font_medium, UI_TEXT_MAIN, WIDTH//2, pr.y+170, center=True)
         if details:
-            self.draw_text(screen, details, self.font_small, UI_TEXT_DIM, WIDTH // 2, panel_rect.y + 220, center=True)
+            self.draw_text(screen, details, self.font_small, UI_TEXT_DIM, WIDTH//2, pr.y+220, center=True)
 
     def draw_multiplayer_result(self, screen, result_text):
-        overlay = pygame.Surface((WIDTH, HEIGHT))
-        overlay.set_alpha(220)
-        overlay.fill((5, 5, 10))
-        screen.blit(overlay, (0, 0))
-
-        panel_rect = pygame.Rect(WIDTH // 2 - 360, HEIGHT // 2 - 180, 720, 360)
-        self.draw_glass_panel(screen, panel_rect, alpha=245)
-
-        self.draw_glowing_text(screen, result_text, self.font_large, UI_GOLD, (WIDTH // 2, panel_rect.y + 120))
-        self.draw_text(screen, "Stlač R pre rematch alebo ESC pre návrat do menu", self.font_small, UI_TEXT_DIM, WIDTH // 2,
-                       panel_rect.y + 220, center=True)
+        ov = pygame.Surface((WIDTH, HEIGHT)); ov.set_alpha(220); ov.fill((5,5,10)); screen.blit(ov, (0,0))
+        pr = pygame.Rect(WIDTH//2-360, HEIGHT//2-180, 720, 360)
+        self.draw_glass_panel(screen, pr, 245)
+        self.draw_glowing_text(screen, result_text, self.font_large, UI_GOLD, (WIDTH//2, pr.y+120))
+        self.draw_text(screen, "Stlac R pre rematch alebo ESC pre navrat do menu", self.font_small, UI_TEXT_DIM, WIDTH//2, pr.y+220, center=True)
 
     def draw_leaderboard(self, screen, highscores):
-        overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 215))
-        screen.blit(overlay, (0, 0))
+        ov = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA); ov.fill((0,0,0,215)); screen.blit(ov, (0,0))
+        pr = pygame.Rect(WIDTH//2-250, HEIGHT//2-340, 500, 680)
+        self.draw_glass_panel(screen, pr, 245)
+        self.draw_glowing_text(screen, "TOP 20 REKORDOV", self.font_medium, UI_GOLD, (WIDTH//2, pr.y+45))
+        yo = pr.y + 110
+        for i, e in enumerate(highscores[:20]):
+            c = UI_GOLD if i==0 else UI_TEXT_MAIN
+            if i%2==0:
+                s = pygame.Surface((pr.width-40, 24), pygame.SRCALPHA); s.fill((255,255,255,10)); screen.blit(s, (pr.x+20, yo-2))
+            self.draw_text(screen, f"{i+1}.", self.font_small, c, pr.x+40, yo)
+            self.draw_text(screen, e['name'][:15], self.font_small, UI_TEXT_MAIN, pr.x+100, yo)
+            self.draw_text(screen, f"{int(e['score']):06d}", self.font_tech, UI_ACCENT, pr.right-120, yo)
+            yo += 27
 
-        panel_rect = pygame.Rect(WIDTH // 2 - 250, HEIGHT // 2 - 340, 500, 680)
-        self.draw_glass_panel(screen, panel_rect, alpha=245)
-        self.draw_glowing_text(screen, "TOP 20 REKORDOV", self.font_medium, UI_GOLD, (WIDTH // 2, panel_rect.y + 45))
-
-        y_off = panel_rect.y + 110
-        for i, entry in enumerate(highscores[:20]):
-            color = UI_GOLD if i == 0 else UI_TEXT_MAIN
-            if i % 2 == 0:
-                s = pygame.Surface((panel_rect.width - 40, 24), pygame.SRCALPHA)
-                s.fill((255, 255, 255, 10))
-                screen.blit(s, (panel_rect.x + 20, y_off - 2))
-            self.draw_text(screen, f"{i + 1}.", self.font_small, color, panel_rect.x + 40, y_off)
-            self.draw_text(screen, entry['name'][:15], self.font_small, UI_TEXT_MAIN, panel_rect.x + 100, y_off)
-            self.draw_text(screen, f"{int(entry['score']):06d}", self.font_tech, UI_ACCENT, panel_rect.right - 120,
-            y_off)
-            y_off += 27
-
-    def draw_hud(self, screen, score, speed, audio_manager):
-        top_bar_height = 50
-        s = pygame.Surface((WIDTH, top_bar_height))
-        s.set_alpha(230)
-        s.fill((10, 10, 15))
-        screen.blit(s, (0, 0))
-
-        pygame.draw.line(screen, UI_ACCENT, (0, top_bar_height), (WIDTH, top_bar_height), 2)
-
-        score_formatted = f"{int(score):06d}"
+    def draw_hud(self, screen, score, speed, audio_manager, coins=0):
+        th = 50
+        s = pygame.Surface((WIDTH, th)); s.set_alpha(230); s.fill((10,10,15)); screen.blit(s, (0,0))
+        pygame.draw.line(screen, UI_ACCENT, (0, th), (WIDTH, th), 2)
         self.draw_text(screen, "SCORE", self.font_small, UI_TEXT_DIM, 40, 12)
-        score_surf = self.font_tech.render(score_formatted, True, UI_TEXT_MAIN)
-        screen.blit(score_surf, (130, 10))
-
-        # Zobrazenie hlasitosti
-        vol_pct = int(audio_manager.engine_volume * 100) if not audio_manager.muted else 0
-        vol_color = UI_ACCENT if not audio_manager.muted else UI_WARNING
-        vol_text = f"VOL: {vol_pct}%" if not audio_manager.muted else "MUTE"
-        self.draw_text(screen, vol_text, self.font_tech, vol_color, 280, 10)
-
-        level = int(score // DIFFICULTY_INCREASE_INTERVAL) + 1
-        level_text = f"STAGE {level}"
-        level_rect = self.draw_text(screen, level_text, self.font_medium, UI_GOLD, WIDTH // 2, 25, center=True)
-
-        pygame.draw.circle(screen, UI_WARNING, (level_rect.left - 20, 25), 5)
-        pygame.draw.circle(screen, UI_WARNING, (level_rect.right + 20, 25), 5)
-
+        screen.blit(self.font_tech.render(f"{int(score):06d}", True, UI_TEXT_MAIN), (130, 10))
+        self.draw_text(screen, f"${coins}", self.font_tech, UI_GOLD, 280, 10)
+        vp = int(audio_manager.engine_volume*100) if not audio_manager.muted else 0
+        vc = UI_ACCENT if not audio_manager.muted else UI_WARNING
+        vt = f"VOL: {vp}%" if not audio_manager.muted else "MUTE"
+        self.draw_text(screen, vt, self.font_tech, vc, 380, 10)
+        lv = int(score // DIFFICULTY_INCREASE_INTERVAL) + 1
+        lr = self.draw_text(screen, f"STAGE {lv}", self.font_medium, UI_GOLD, WIDTH//2, 25, center=True)
+        pygame.draw.circle(screen, UI_WARNING, (lr.left-20, 25), 5)
+        pygame.draw.circle(screen, UI_WARNING, (lr.right+20, 25), 5)
         self.draw_digital_tachometer(screen, speed)
 
     def draw_digital_tachometer(self, screen, speed):
-        panel_width = 200
-        panel_height = 140
-        panel_x = WIDTH - panel_width - 20
-        panel_y = 70
-
-        panel_rect = pygame.Rect(panel_x, panel_y, panel_width, panel_height)
-
-        s = pygame.Surface((panel_width, panel_height), pygame.SRCALPHA)
+        pw, ph = 200, 140
+        px, py = WIDTH - pw - 20, 70
+        pr = pygame.Rect(px, py, pw, ph)
+        s = pygame.Surface((pw, ph), pygame.SRCALPHA)
         pygame.draw.rect(s, (*UI_PANEL_BG, 240), s.get_rect(), border_radius=10)
-        screen.blit(s, (panel_x, panel_y))
+        screen.blit(s, (px, py))
+        pygame.draw.rect(screen, UI_ACCENT, pr, 2, border_radius=10)
+        cs, ct = 15, 3
+        corners = [[(px,py),(px+cs,py)],[(px,py),(px,py+cs)],[(px+pw,py),(px+pw-cs,py)],[(px+pw,py),(px+pw,py+cs)],
+                   [(px,py+ph),(px+cs,py+ph)],[(px,py+ph),(px,py+ph-cs)],[(px+pw,py+ph),(px+pw-cs,py+ph)],[(px+pw,py+ph),(px+pw,py+ph-cs)]]
+        for c in corners: pygame.draw.line(screen, UI_ACCENT, c[0], c[1], ct)
+        self.draw_text(screen, "SPEED", self.font_small, UI_TEXT_DIM, px+pw//2, py+20, center=True)
+        sv = int(speed*18); sr = min(speed/MAX_SCROLL_SPEED, 1.0)
+        color = GAUGE_LOW if sr<0.5 else GAUGE_MID if sr<0.8 else GAUGE_HIGH
+        sf = pygame.font.Font(None, 70); st = str(sv)
+        for ox in range(-2,3):
+            for oy in range(-2,3):
+                if ox!=0 or oy!=0:
+                    g = sf.render(st, True, color); g.set_alpha(20)
+                    screen.blit(g, g.get_rect(center=(px+pw//2+ox, py+70+oy)))
+        main_speed_surf = sf.render(st, True, (255, 255, 255))
+        screen.blit(main_speed_surf, main_speed_surf.get_rect(center=(px + pw // 2, py + 70)))
+        self.draw_text(screen, "KM/H", self.font_tech, UI_TEXT_DIM, px+pw//2, py+105, center=True)
+        bw, bh2 = pw-40, 6; bx, by = px+20, py+ph-20
+        pygame.draw.rect(screen, (30,30,40), (bx, by, bw, bh2), border_radius=3)
+        fw = int(bw * sr)
+        if fw > 0:
+            pygame.draw.rect(screen, color, (bx, by, fw, bh2), border_radius=3)
+            for i in range(0, fw, 2):
+                pa = int(50+50*math.sin(self.time_tracker*0.1+i*0.1))
+                ps = pygame.Surface((2, bh2), pygame.SRCALPHA); ps.fill((*color, pa)); screen.blit(ps, (bx+i, by))
 
-        pygame.draw.rect(screen, UI_ACCENT, panel_rect, 2, border_radius=10)
-
-        corner_size = 15
-        corner_thickness = 3
-        corners = [
-            [(panel_x, panel_y), (panel_x + corner_size, panel_y)],
-            [(panel_x, panel_y), (panel_x, panel_y + corner_size)],
-            [(panel_x + panel_width, panel_y), (panel_x + panel_width - corner_size, panel_y)],
-            [(panel_x + panel_width, panel_y), (panel_x + panel_width, panel_y + corner_size)],
-            [(panel_x, panel_y + panel_height), (panel_x + corner_size, panel_y + panel_height)],
-            [(panel_x, panel_y + panel_height), (panel_x, panel_y + panel_height - corner_size)],
-            [(panel_x + panel_width, panel_y + panel_height),
-            (panel_x + panel_width - corner_size, panel_y + panel_height)],
-            [(panel_x + panel_width, panel_y + panel_height),
-            (panel_x + panel_width, panel_y + panel_height - corner_size)],
-        ]
-
-        for corner in corners:
-            pygame.draw.line(screen, UI_ACCENT, corner[0], corner[1], corner_thickness)
-
-        label_y = panel_y + 20
-        self.draw_text(screen, "SPEED", self.font_small, UI_TEXT_DIM, panel_x + panel_width // 2, label_y, center=True)
-
-        speed_val = int(speed * 18)
-        speed_ratio = min(speed / MAX_SCROLL_SPEED, 1.0)
-
-        if speed_ratio < 0.5:
-            color = GAUGE_LOW
-        elif speed_ratio < 0.8:
-            color = GAUGE_MID
-        else:
-            color = GAUGE_HIGH
-
-        speed_font = pygame.font.Font(None, 70)
-        speed_text = str(speed_val)
-
-        for offset_x in range(-2, 3):
-            for offset_y in range(-2, 3):
-                if offset_x != 0 or offset_y != 0:
-                    glow = speed_font.render(speed_text, True, color)
-                    glow.set_alpha(20)
-                    glow_rect = glow.get_rect(center=(panel_x + panel_width // 2 + offset_x, panel_y + 70 + offset_y))
-                    screen.blit(glow, glow_rect)
-
-        speed_surf = speed_font.render(speed_text, True, (255, 255, 255))
-        speed_rect = speed_surf.get_rect(center=(panel_x + panel_width // 2, panel_y + 70))
-        screen.blit(speed_surf, speed_rect)
-
-        unit_y = panel_y + 105
-        self.draw_text(screen, "KM/H", self.font_tech, UI_TEXT_DIM, panel_x + panel_width // 2, unit_y, center=True)
-
-        bar_width = panel_width - 40
-        bar_height = 6
-        bar_x = panel_x + 20
-        bar_y = panel_y + panel_height - 20
-
-        pygame.draw.rect(screen, (30, 30, 40), (bar_x, bar_y, bar_width, bar_height), border_radius=3)
-
-        filled_width = int(bar_width * speed_ratio)
-        if filled_width > 0:
-            pygame.draw.rect(screen, color, (bar_x, bar_y, filled_width, bar_height), border_radius=3)
-
-            for i in range(0, filled_width, 2):
-                pulse_alpha = int(50 + 50 * math.sin(self.time_tracker * 0.1 + i * 0.1))
-                pulse_surf = pygame.Surface((2, bar_height), pygame.SRCALPHA)
-                pulse_surf.fill((*color, pulse_alpha))
-                screen.blit(pulse_surf, (bar_x + i, bar_y))
-
-    def draw_game_over_screen(self, screen, score, is_highscore, mouse_pos, mouse_clicked):
-        overlay = pygame.Surface((WIDTH, HEIGHT))
-        overlay.set_alpha(240)
-        overlay.fill((5, 5, 10))
-        screen.blit(overlay, (0, 0))
-
-        panel_width = 600
-        panel_height = 400
-        panel_x = WIDTH // 2 - panel_width // 2
-        panel_y = HEIGHT // 2 - panel_height // 2
-
-        panel_rect = pygame.Rect(panel_x, panel_y, panel_width, panel_height)
-
-        glow_rect = panel_rect.copy()
-        glow_rect.inflate_ip(20, 20)
-        pygame.draw.rect(screen, (UI_WARNING[0], UI_WARNING[1], UI_WARNING[2], 50), glow_rect, border_radius=20)
-
-        self.draw_glass_panel(screen, panel_rect, alpha=255)
-
+    def draw_game_over_screen(self, screen, score, is_highscore, coins_earned, mouse_pos, mouse_clicked):
+        ov = pygame.Surface((WIDTH, HEIGHT)); ov.set_alpha(240); ov.fill((5,5,10)); screen.blit(ov, (0,0))
+        pw2, ph2 = 600, 440
+        px2, py2 = WIDTH//2-pw2//2, HEIGHT//2-ph2//2
+        pr = pygame.Rect(px2, py2, pw2, ph2)
+        gr = pr.copy(); gr.inflate_ip(20, 20)
+        pygame.draw.rect(screen, (UI_WARNING[0], UI_WARNING[1], UI_WARNING[2], 50), gr, border_radius=20)
+        self.draw_glass_panel(screen, pr, 255)
         title = "MISSION FAILED" if not is_highscore else "NEW RECORD!"
         color = UI_WARNING if not is_highscore else UI_GOLD
-
-        self.draw_glowing_text(screen, title, self.font_large, color, (WIDTH // 2, panel_y + 60))
-
-        pygame.draw.rect(screen, (0, 0, 0), (WIDTH // 2 - 150, panel_y + 120, 300, 80), border_radius=10)
-        pygame.draw.rect(screen, color, (WIDTH // 2 - 150, panel_y + 120, 300, 80), 2, border_radius=10)
-
-        self.draw_text(screen, "FINAL SCORE", self.font_small, UI_TEXT_DIM, WIDTH // 2, panel_y + 135, center=True)
-        self.draw_text(screen, str(int(score)), self.font_large, (255, 255, 255), WIDTH // 2, panel_y + 170,
-        center=True)
-
+        self.draw_glowing_text(screen, title, self.font_large, color, (WIDTH//2, py2+50))
+        pygame.draw.rect(screen, (0,0,0), (WIDTH//2-150, py2+100, 300, 80), border_radius=10)
+        pygame.draw.rect(screen, color, (WIDTH//2-150, py2+100, 300, 80), 2, border_radius=10)
+        self.draw_text(screen, "FINAL SCORE", self.font_small, UI_TEXT_DIM, WIDTH//2, py2+115, center=True)
+        self.draw_text(screen, str(int(score)), self.font_large, (255,255,255), WIDTH//2, py2+150, center=True)
+        self.draw_text(screen, f"Mince ziskane: +{coins_earned}", self.font_medium, UI_GOLD, WIDTH//2, py2+210, center=True)
         if is_highscore:
-            self.draw_text(screen, "Zadaj meno a stlač ENTER", self.font_small, UI_ACCENT, WIDTH // 2, panel_y + 225,
-            center=True)
+            self.draw_text(screen, "Zadaj meno a stlac ENTER", self.font_small, UI_ACCENT, WIDTH//2, py2+260, center=True)
         else:
-            self.continue_button.update(mouse_pos)
-            self.continue_button.draw(screen)
+            self.continue_button.rect.center = (WIDTH//2, py2+320)
+            self.continue_button.update(mouse_pos); self.continue_button.draw(screen)
             return self.continue_button.is_clicked(mouse_pos, mouse_clicked)
-
         return False
 
     def draw_name_input(self, screen, name):
-        input_rect = pygame.Rect(WIDTH // 2 - 200, HEIGHT // 2 + 50, 400, 60)
-        pygame.draw.rect(screen, (0, 0, 0), input_rect, border_radius=5)
-        pygame.draw.rect(screen, UI_ACCENT, input_rect, 2, border_radius=5)
+        ir = pygame.Rect(WIDTH//2-200, HEIGHT//2+50, 400, 60)
+        pygame.draw.rect(screen, (0,0,0), ir, border_radius=5)
+        pygame.draw.rect(screen, UI_ACCENT, ir, 2, border_radius=5)
+        cursor = "_" if (pygame.time.get_ticks()//500)%2==0 else ""
+        screen.blit(self.font_medium.render(name+cursor, True, UI_TEXT_MAIN), (ir.x+20, ir.y+15))
 
-        cursor = "_" if (pygame.time.get_ticks() // 500) % 2 == 0 else ""
-        txt_surf = self.font_medium.render(name + cursor, True, UI_TEXT_MAIN)
-        screen.blit(txt_surf, (input_rect.x + 20, input_rect.y + 15))
+    def draw_collection(self, screen, unlocked_skins, mouse_pos, mouse_clicked):
+        self.draw_animated_bg(screen)
+        self.draw_glowing_text(screen, "KOLEKCIA", self.font_large, UI_ACCENT, (WIDTH//2, 45), 3)
+        total = len(CAR_SKINS)
+        unlocked = len(unlocked_skins)
+        pct = int(100 * unlocked / total) if total > 0 else 0
+        bar_w, bar_h = 500, 20
+        bar_x, bar_y = WIDTH//2 - bar_w//2, 85
+        pygame.draw.rect(screen, (30,30,40), (bar_x, bar_y, bar_w, bar_h), border_radius=10)
+        fill_w = int(bar_w * unlocked / total) if total > 0 else 0
+        if fill_w > 0:
+            pygame.draw.rect(screen, UI_ACCENT, (bar_x, bar_y, fill_w, bar_h), border_radius=10)
+        self.draw_text(screen, f"{unlocked}/{total} ({pct}%)", self.font_small, UI_TEXT_MAIN, WIDTH//2, bar_y+bar_h//2+1, center=True)
+        if unlocked == total:
+            self.draw_text(screen, "KOMPLETNA KOLEKCIA! +500 minci bonus", self.font_small, UI_GOLD, WIDTH//2, bar_y+bar_h+22, center=True)
+        else:
+            missing = total - unlocked
+            self.draw_text(screen, f"Chyba ti {missing} skinov - otvor lootbox!", self.font_small, UI_TEXT_DIM, WIDTH//2, bar_y+bar_h+22, center=True)
+        cols = 4
+        card_w, card_h = 140, 180
+        gap_x, gap_y = 18, 18
+        grid_w = cols * card_w + (cols-1) * gap_x
+        grid_x = WIDTH//2 - grid_w//2
+        grid_y = 155
+        for i, skin in enumerate(CAR_SKINS):
+            row = i // cols
+            col = i % cols
+            cx = grid_x + col * (card_w + gap_x)
+            cy = grid_y + row * (card_h + gap_y)
+            is_unlocked = i in unlocked_skins
+            rarity = skin.get("rarity", RARITY_COMMON)
+            rc = RARITY_COLORS.get(rarity, UI_TEXT_DIM)
+            card_rect = pygame.Rect(cx, cy, card_w, card_h)
+            card_surf = pygame.Surface((card_w, card_h), pygame.SRCALPHA)
+            if is_unlocked: card_surf.fill((30,35,55,240))
+            else: card_surf.fill((15,15,22,240))
+            screen.blit(card_surf, (cx, cy))
+            pygame.draw.rect(screen, rc if is_unlocked else (50,50,60), card_rect, 2, border_radius=6)
+            if is_unlocked:
+                rar_label = RARITY_LABELS.get(rarity, "")
+                rl_surf = pygame.font.Font(None, 16).render(rar_label, True, rc)
+                screen.blit(rl_surf, rl_surf.get_rect(midtop=(cx+card_w//2, cy+5)))
+                self._draw_car(screen, skin, cx+card_w//2, cy+105, 0.8)
+                nm_surf = pygame.font.Font(None, 20).render(skin["name"], True, UI_TEXT_MAIN)
+                screen.blit(nm_surf, nm_surf.get_rect(midbottom=(cx+card_w//2, cy+card_h-6)))
+            else:
+                dark_skin = {k: (30,30,40) if k in ("body","spoiler","wing","helmet") else v for k, v in skin.items()}
+                self._draw_car(screen, dark_skin, cx+card_w//2, cy+105, 0.8)
+                lock_font = pygame.font.Font(None, 40)
+                lock_surf = lock_font.render("?", True, (60,60,80))
+                screen.blit(lock_surf, lock_surf.get_rect(center=(cx+card_w//2, cy+90)))
+                rar_label = RARITY_LABELS.get(rarity, "")
+                rl_surf = pygame.font.Font(None, 16).render(rar_label, True, (60,60,80))
+                screen.blit(rl_surf, rl_surf.get_rect(midtop=(cx+card_w//2, cy+5)))
+                lk_surf = pygame.font.Font(None, 18).render("ZAMKNUTY", True, (70,70,90))
+                screen.blit(lk_surf, lk_surf.get_rect(midbottom=(cx+card_w//2, cy+card_h-6)))
+        self.back_btn.update(mouse_pos); self.back_btn.draw(screen)
+        if self.back_btn.is_clicked(mouse_pos, mouse_clicked): return "back"
+        return None
 
     def draw_text(self, screen, text, font, color, x, y, center=False):
-        text_surface = font.render(text, True, color)
-        text_rect = text_surface.get_rect()
-
-        if center:
-            text_rect.center = (x, y)
-        else:
-            text_rect.topleft = (x, y)
-
-        screen.blit(text_surface, text_rect)
-        return text_rect
+        ts = font.render(text, True, color)
+        tr = ts.get_rect()
+        if center: tr.center = (x, y)
+        else: tr.topleft = (x, y)
+        screen.blit(ts, tr)
+        return tr

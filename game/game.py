@@ -1,10 +1,12 @@
-﻿import pygame
+import pygame
 import random
 import socket
+import math
 from src.settings import *
 from src.road.road import Road
 from src.cars.player import Player
 from src.cars.obstacle import ObstacleCar
+from src.coins.coin import Coin
 from src.score.score_manager import ScoreManager
 from src.ui.ui_manager import UIManager
 from src.audio.audio_manager import AudioManager
@@ -28,6 +30,12 @@ class GameState:
     MP_CLIENT_SETUP = 5
     MP_WAITING = 6
     MP_RESULT = 7
+    SKIN_SELECT = 8
+    LOOTBOX_SHOP = 9
+    PAYWALL = 10
+    COLLECTION = 11
+    EFFECTS_SHOP = 12
+    EQUIP_EFFECTS = 13
 
 
 class Game:
@@ -50,6 +58,7 @@ class Game:
         self.player = None
         self.players = []
         self.obstacles = []
+        self.coins_on_road = []
 
         self.current_speed = INITIAL_SCROLL_SPEED
         self.obstacle_spawn_rate = 8
@@ -69,8 +78,15 @@ class Game:
         self.remote_crashed = False
         self.multiplayer_crash_sent = False
         self.host_setup_sent = False
-        self.host_setup_sent = False
-        self.host_setup_sent = False
+
+        self.selected_skin_index = 0
+        self.lootbox_result = None
+        self.paywall_message = None
+        self.effect_box_result = None
+        self.effect_equip_category = 0
+        self.effect_particles = []
+        self.effect_trails = []
+        self.effect_frame = 0
 
     def get_local_ip(self):
         try:
@@ -82,24 +98,32 @@ class Game:
         except Exception:
             return "127.0.0.1"
 
+    def get_selected_skin(self):
+        unlocked = sorted(self.score_manager.unlocked_skins)
+        if self.selected_skin_index not in unlocked:
+            self.selected_skin_index = unlocked[0] if unlocked else 0
+        return CAR_SKINS[self.selected_skin_index]
+
     def reset_game(self, seed=None, multiplayer=False):
+        skin = self.get_selected_skin()
         if multiplayer:
             self.network_seed = seed if seed is not None else random.randint(0, 2**31 - 1)
             self.rng = random.Random(self.network_seed)
             self.road = Road(self.rng)
             self.players = [
-                Player(WIDTH // 2, HEIGHT - 130, color=PLAYER_COLOR),
+                Player(WIDTH // 2, HEIGHT - 130, color=skin["body"], skin=skin),
                 Player(WIDTH // 2, HEIGHT - 130, color=OBSTACLE_COLOR)
             ]
             self.player = self.players[self.local_player_index]
         else:
             self.rng = random.Random()
             self.road = Road(self.rng)
-            self.player = Player(WIDTH // 2, HEIGHT - 130)
+            self.player = Player(WIDTH // 2, HEIGHT - 130, color=skin["body"], skin=skin)
             self.players = [self.player]
-
         self.obstacles = []
+        self.coins_on_road = []
         self.score_manager.reset_score()
+        self.score_manager.reset_session_coins()
         self.current_speed = INITIAL_SCROLL_SPEED
         self.obstacle_spawn_rate = 8
         self.last_difficulty_score = 0
@@ -111,11 +135,13 @@ class Game:
         self.remote_crashed = False
         self.multiplayer_crash_sent = False
         self.audio.start_engine()
+        self.effect_particles = []
+        self.effect_trails = []
+        self.effect_frame = 0
 
     def increase_difficulty(self):
         if self.current_speed < MAX_SCROLL_SPEED:
             self.current_speed += SPEED_INCREASE
-
         if self.obstacle_spawn_rate > 3:
             self.obstacle_spawn_rate -= OBSTACLE_SPAWN_INCREASE
 
@@ -130,59 +156,163 @@ class Game:
             highest = min(o.y for o in self.obstacles)
             if highest > -MIN_OBSTACLE_GAP:
                 return
-
         if self.rng.randint(0, self.obstacle_spawn_rate) == 0:
             new_obstacle = ObstacleCar(-OBSTACLE_HEIGHT)
             new_obstacle.offset = self.rng.randint(-ROAD_WIDTH // 3, ROAD_WIDTH // 3)
             self.obstacles.append(new_obstacle)
 
+    def spawn_coin(self):
+        if self.rng.randint(0, COIN_SPAWN_CHANCE) == 0:
+            center = self.road.get_center_at(-50)
+            offset = self.rng.randint(-ROAD_WIDTH // 3, ROAD_WIDTH // 3)
+            self.coins_on_road.append(Coin(center + offset, -30))
+
     def update_obstacles(self):
         for o in self.obstacles:
             o.y += self.current_speed
-
-        before_count = len(self.obstacles)
+        before = len(self.obstacles)
         self.obstacles = [o for o in self.obstacles if o.y < HEIGHT + 200]
-        after_count = len(self.obstacles)
-
-        passed = before_count - after_count
+        passed = before - len(self.obstacles)
         if passed > 0:
             self.score_manager.increment_score(passed * 10)
 
+    def update_coins(self):
+        for coin in self.coins_on_road:
+            coin.update(self.current_speed)
+        pr = pygame.Rect(self.player.x - PLAYER_WIDTH // 2, self.player.y, PLAYER_WIDTH, PLAYER_HEIGHT)
+        collected = [c for c in self.coins_on_road if pr.colliderect(c.get_rect())]
+        for c in collected:
+            self.score_manager.add_coins(COIN_VALUE)
+            self.coins_on_road.remove(c)
+        self.coins_on_road = [c for c in self.coins_on_road if not c.is_offscreen()]
+
     def check_collisions(self, player):
         center_at_player = self.road.get_center_at(player.y + PLAYER_HEIGHT // 2)
-        left_edge = center_at_player - ROAD_WIDTH // 2
-        right_edge = center_at_player + ROAD_WIDTH // 2
-
-        if player.x - PLAYER_WIDTH // 2 < left_edge or player.x + PLAYER_WIDTH // 2 > right_edge:
+        le = center_at_player - ROAD_WIDTH // 2
+        re = center_at_player + ROAD_WIDTH // 2
+        if player.x - PLAYER_WIDTH // 2 < le or player.x + PLAYER_WIDTH // 2 > re:
             return True
-
-        player_rect = pygame.Rect(
-            player.x - PLAYER_WIDTH // 2,
-            player.y,
-            PLAYER_WIDTH,
-            PLAYER_HEIGHT
-        )
-
+        pr = pygame.Rect(player.x - PLAYER_WIDTH // 2, player.y, PLAYER_WIDTH, PLAYER_HEIGHT)
         for o in self.obstacles:
             c = self.road.get_center_at(o.y + OBSTACLE_HEIGHT // 2) + o.offset
-            obstacle_rect = pygame.Rect(
-                c - OBSTACLE_WIDTH // 2,
-                o.y,
-                OBSTACLE_WIDTH,
-                OBSTACLE_HEIGHT
-            )
-            if player_rect.colliderect(obstacle_rect):
+            orect = pygame.Rect(c - OBSTACLE_WIDTH // 2, o.y, OBSTACLE_WIDTH, OBSTACLE_HEIGHT)
+            if pr.colliderect(orect):
                 return True
-
         return False
 
+    def open_lootbox(self):
+        if not self.score_manager.spend_coins(LOOTBOX_COST):
+            return None
+
+        sm = self.score_manager
+        sm.pity_epic += 1
+        sm.pity_legendary += 1
+
+        if sm.pity_legendary >= PITY_LEGENDARY_THRESHOLD:
+            target_rarity = RARITY_LEGENDARY
+        elif sm.pity_epic >= PITY_EPIC_THRESHOLD:
+            if random.randint(1, 100) <= 20:
+                target_rarity = RARITY_LEGENDARY
+            else:
+                target_rarity = RARITY_EPIC
+        else:
+            roll = random.randint(1, 100)
+            cumulative = 0
+            target_rarity = RARITY_COMMON
+            for rarity, weight in RARITY_WEIGHTS.items():
+                cumulative += weight
+                if roll <= cumulative:
+                    target_rarity = rarity
+                    break
+
+        candidates = [i for i, s in enumerate(CAR_SKINS) if s.get("rarity") == target_rarity]
+        if not candidates:
+            candidates = list(range(len(CAR_SKINS)))
+        skin_idx = random.choice(candidates)
+        skin = CAR_SKINS[skin_idx]
+        actual_rarity = skin.get("rarity", RARITY_COMMON)
+
+        if actual_rarity == RARITY_LEGENDARY:
+            sm.pity_legendary = 0
+            sm.pity_epic = 0
+        elif actual_rarity in (RARITY_EPIC,):
+            sm.pity_epic = 0
+        sm.save_pity()
+
+        is_new = sm.unlock_skin(skin_idx)
+        if is_new:
+            return {"skin_name": skin["name"], "skin_index": skin_idx, "is_new": True,
+                    "refund": 0, "rarity": actual_rarity,
+                    "pity_epic": sm.pity_epic, "pity_legendary": sm.pity_legendary}
+        else:
+            refund = RARITY_REFUND.get(actual_rarity, 50)
+            sm.add_coins(refund)
+            sm.session_coins -= refund
+            return {"skin_name": skin["name"], "skin_index": skin_idx, "is_new": False,
+                    "refund": refund, "rarity": actual_rarity,
+                    "pity_epic": sm.pity_epic, "pity_legendary": sm.pity_legendary}
+
+    def open_effect_box(self):
+        if not self.score_manager.spend_coins(EFFECT_BOX_COST):
+            return None
+
+        sm = self.score_manager
+        sm.pity_epic += 1
+        sm.pity_legendary += 1
+
+        if sm.pity_legendary >= PITY_LEGENDARY_THRESHOLD:
+            target_rarity = RARITY_LEGENDARY
+        elif sm.pity_epic >= PITY_EPIC_THRESHOLD:
+            if random.randint(1, 100) <= 20:
+                target_rarity = RARITY_LEGENDARY
+            else:
+                target_rarity = RARITY_EPIC
+        else:
+            roll = random.randint(1, 100)
+            cumulative = 0
+            target_rarity = RARITY_COMMON
+            for rarity, weight in RARITY_WEIGHTS.items():
+                cumulative += weight
+                if roll <= cumulative:
+                    target_rarity = rarity
+                    break
+
+        candidates = [i for i, e in enumerate(EFFECTS) if e.get("rarity") == target_rarity]
+        if not candidates:
+            candidates = list(range(len(EFFECTS)))
+        effect_idx = random.choice(candidates)
+        effect = EFFECTS[effect_idx]
+        actual_rarity = effect.get("rarity", RARITY_COMMON)
+
+        if actual_rarity == RARITY_LEGENDARY:
+            sm.pity_legendary = 0
+            sm.pity_epic = 0
+        elif actual_rarity in (RARITY_EPIC,):
+            sm.pity_epic = 0
+        sm.save_pity()
+
+        is_new = sm.unlock_effect(effect_idx)
+        if is_new:
+            return {"effect_name": effect["name"], "effect_index": effect_idx,
+                    "effect_type": effect["type"], "color": effect["color"],
+                    "is_new": True, "refund": 0, "rarity": actual_rarity,
+                    "pity_epic": sm.pity_epic, "pity_legendary": sm.pity_legendary}
+        else:
+            refund = RARITY_REFUND.get(actual_rarity, 50)
+            sm.add_coins(refund)
+            sm.session_coins -= refund
+            return {"effect_name": effect["name"], "effect_index": effect_idx,
+                    "effect_type": effect["type"], "color": effect["color"],
+                    "is_new": False, "refund": refund, "rarity": actual_rarity,
+                    "pity_epic": sm.pity_epic, "pity_legendary": sm.pity_legendary}
+
+    # --- Input handlers ---
     def handle_menu_input(self, event, mouse_pos, mouse_clicked):
-        if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_SPACE:
-                self.audio.play_sfx('click')
-                self.mode = GameMode.SINGLEPLAYER
-                self.reset_game()
-                self.state = GameState.PLAYING
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+            self.audio.play_sfx('click')
+            self.mode = GameMode.SINGLEPLAYER
+            self.reset_game()
+            self.state = GameState.PLAYING
 
     def handle_join_input(self, event):
         if event.type == pygame.KEYDOWN:
@@ -191,11 +321,11 @@ class Game:
                 self.network = ClientPeer(self.join_ip, MULTIPLAYER_PORT)
                 self.network.connect()
                 if self.network.is_connected():
-                    self.connection_message = f"Pripojené na {self.join_ip}:{MULTIPLAYER_PORT}. Čakám na hostiteľa..."
+                    self.connection_message = f"Pripojene na {self.join_ip}:{MULTIPLAYER_PORT}. Cakam..."
                     self.network.send_packet({"type": PacketType.HELLO, "role": "client"})
                     self.state = GameState.MP_WAITING
                 else:
-                    self.connection_message = "Nepodarilo sa pripojiť. Skontroluj IP a skúšaj znova."
+                    self.connection_message = "Nepodarilo sa pripojit."
             elif event.key == pygame.K_BACKSPACE:
                 self.join_ip = self.join_ip[:-1]
             elif len(self.join_ip) < 22:
@@ -203,41 +333,31 @@ class Game:
                     self.join_ip += event.unicode
 
     def handle_playing_input(self, event):
-        if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_ESCAPE:
-                self.state = GameState.PAUSED
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+            self.state = GameState.PAUSED
 
     def handle_paused_input(self, event):
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
-                self.audio.play_sfx('click')
-                self.state = GameState.PLAYING
+                self.audio.play_sfx('click'); self.state = GameState.PLAYING
             elif event.key == pygame.K_q:
-                self.audio.stop_engine()
-                self.cleanup_network()
-                self.state = GameState.MENU
+                self.audio.stop_engine(); self.cleanup_network(); self.state = GameState.MENU
 
     def handle_game_over_input(self, event, mouse_pos, mouse_clicked):
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_RETURN:
                 score = self.score_manager.get_current_score()
                 if self.score_manager.is_highscore(score):
-                    self.audio.play_sfx('highscore')
-                    self.state = GameState.ENTERING_NAME
+                    self.audio.play_sfx('highscore'); self.state = GameState.ENTERING_NAME
                 else:
-                    self.audio.play_sfx('click')
-                    self.state = GameState.MENU
+                    self.audio.play_sfx('click'); self.state = GameState.MENU
             elif event.key == pygame.K_ESCAPE:
-                self.audio.play_sfx('click')
-                self.state = GameState.MENU
+                self.audio.play_sfx('click'); self.state = GameState.MENU
 
     def handle_multiplayer_result_input(self, event):
         if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_r:
-                self.request_rematch()
-            elif event.key == pygame.K_ESCAPE:
-                self.cleanup_network()
-                self.state = GameState.MENU
+            if event.key == pygame.K_r: self.request_rematch()
+            elif event.key == pygame.K_ESCAPE: self.cleanup_network(); self.state = GameState.MENU
 
     def handle_name_input(self, event):
         if event.type == pygame.KEYDOWN:
@@ -246,270 +366,348 @@ class Game:
                 self.score_manager.add_score(self.player_name, self.score_manager.get_current_score())
                 self.state = GameState.MENU
             elif event.key == pygame.K_BACKSPACE:
-                if len(self.player_name) > 0:
-                    self.audio.play_sfx('click')
+                if len(self.player_name) > 0: self.audio.play_sfx('click')
                 self.player_name = self.player_name[:-1]
             elif len(self.player_name) < 15:
                 if event.unicode.isalnum() or event.unicode == ' ':
-                    self.audio.play_sfx('click')
-                    self.player_name += event.unicode
+                    self.audio.play_sfx('click'); self.player_name += event.unicode
 
+    def handle_skin_input(self, event):
+        if event.type == pygame.KEYDOWN:
+            ul = sorted(self.score_manager.unlocked_skins) or [0]
+            cp = 0
+            for i, idx in enumerate(ul):
+                if idx == self.selected_skin_index: cp = i; break
+            if event.key == pygame.K_LEFT:
+                self.audio.play_sfx('click'); cp = (cp-1)%len(ul); self.selected_skin_index = ul[cp]
+            elif event.key == pygame.K_RIGHT:
+                self.audio.play_sfx('click'); cp = (cp+1)%len(ul); self.selected_skin_index = ul[cp]
+            elif event.key in (pygame.K_RETURN, pygame.K_ESCAPE):
+                self.audio.play_sfx('click'); self.state = GameState.MENU
+
+    def handle_lootbox_input(self, event):
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_ESCAPE:
+                self.audio.play_sfx('click'); self.lootbox_result = None; self.state = GameState.MENU
+            elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
+                if self.lootbox_result and self.ui_manager.lootbox_anim_frame > 235:
+                    self.audio.play_sfx('click'); self.lootbox_result = None
+                elif not self.lootbox_result and self.score_manager.coins >= LOOTBOX_COST:
+                    self.audio.play_sfx('click'); self.lootbox_result = self.open_lootbox()
+                    self.ui_manager.lootbox_anim_frame = 0
+
+    def handle_paywall_input(self, event):
+        if event.type == pygame.KEYDOWN:
+            if event.key in (pygame.K_ESCAPE, pygame.K_RETURN):
+                self.audio.play_sfx('click'); self.paywall_message = None; self.state = GameState.LOOTBOX_SHOP
+
+    def handle_collection_input(self, event):
+        if event.type == pygame.KEYDOWN:
+            if event.key in (pygame.K_ESCAPE, pygame.K_RETURN):
+                self.audio.play_sfx('click'); self.state = GameState.MENU
+
+    def handle_effects_shop_input(self, event):
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_ESCAPE:
+                self.audio.play_sfx('click'); self.effect_box_result = None; self.state = GameState.MENU
+            elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
+                if self.effect_box_result and self.ui_manager.lootbox_anim_frame > 235:
+                    self.audio.play_sfx('click'); self.effect_box_result = None
+                elif not self.effect_box_result and self.score_manager.coins >= EFFECT_BOX_COST:
+                    self.audio.play_sfx('click'); self.effect_box_result = self.open_effect_box()
+                    self.ui_manager.lootbox_anim_frame = 0
+
+    def handle_equip_effects_input(self, event):
+        if event.type == pygame.KEYDOWN:
+            if event.key in (pygame.K_ESCAPE, pygame.K_RETURN):
+                self.audio.play_sfx('click'); self.state = GameState.MENU
+            elif event.key == pygame.K_LEFT:
+                self.audio.play_sfx('click')
+                self.effect_equip_category = (self.effect_equip_category - 1) % len(EFFECT_TYPE_LABELS)
+            elif event.key == pygame.K_RIGHT:
+                self.audio.play_sfx('click')
+                self.effect_equip_category = (self.effect_equip_category + 1) % len(EFFECT_TYPE_LABELS)
+
+    # --- Multiplayer ---
     def start_host_session(self):
-        self.mode = GameMode.HOST
-        self.local_player_index = 0
-        self.network = HostServer(port=MULTIPLAYER_PORT)
-        self.network.start()
-        self.connection_message = f"Čakám na hráča...\nIP: {self.get_local_ip()}:{MULTIPLAYER_PORT}"
+        self.mode = GameMode.HOST; self.local_player_index = 0
+        self.network = HostServer(port=MULTIPLAYER_PORT); self.network.start()
+        self.connection_message = f"Cakam na hraca...\nIP: {self.get_local_ip()}:{MULTIPLAYER_PORT}"
         self.state = GameState.MP_WAITING
-        self.reset_game(seed=random.randint(0, 2**31 - 1), multiplayer=True)
-        self.host_setup_sent = False
+        self.reset_game(seed=random.randint(0, 2**31-1), multiplayer=True); self.host_setup_sent = False
 
     def send_setup(self):
         if self.network and self.mode == GameMode.HOST and self.network.is_connected():
-            packet = {"type": PacketType.SETUP, "seed": self.network_seed}
-            self.network.send_packet(packet)
-            self.host_setup_sent = True
+            self.network.send_packet({"type": PacketType.SETUP, "seed": self.network_seed}); self.host_setup_sent = True
 
     def send_start(self):
         if self.network and self.network.is_connected():
-            packet = {"type": PacketType.START}
-            self.network.send_packet(packet)
+            self.network.send_packet({"type": PacketType.START})
 
     def send_input(self, left, right, up=False, down=False):
         if self.network and self.network.is_connected():
-            packet = {
-                "type": PacketType.INPUT,
-                "frame": self.frame_count,
-                "player": self.local_player_index,
-                "left": left,
-                "right": right,
-                "up": up,
-                "down": down
-            }
-            self.network.send_packet(packet)
+            self.network.send_packet({"type": PacketType.INPUT, "frame": self.frame_count, "player": self.local_player_index, "left": left, "right": right, "up": up, "down": down})
 
-    def send_crash(self, player_index):
+    def send_crash(self, pi):
         if self.network and self.network.is_connected() and not self.multiplayer_crash_sent:
-            packet = {"type": PacketType.CRASH, "player": player_index, "frame": self.frame_count}
-            self.network.send_packet(packet)
-            self.multiplayer_crash_sent = True
+            self.network.send_packet({"type": PacketType.CRASH, "player": pi, "frame": self.frame_count}); self.multiplayer_crash_sent = True
 
     def send_result(self, outcome):
         if self.network and self.network.is_connected():
-            packet = {"type": PacketType.RESULT, "outcome": outcome}
-            self.network.send_packet(packet)
+            self.network.send_packet({"type": PacketType.RESULT, "outcome": outcome})
 
     def send_rematch_response(self):
         if self.network and self.network.is_connected():
-            packet = {"type": PacketType.REMATCH_RESPONSE}
-            self.network.send_packet(packet)
+            self.network.send_packet({"type": PacketType.REMATCH_RESPONSE})
 
     def request_rematch(self):
         if self.network and self.network.is_connected():
-            packet = {"type": PacketType.REMATCH_REQUEST}
-            self.network.send_packet(packet)
-            self.connection_message = "Žiadosť o rematch odoslaná. Čakám..."
-            self.state = GameState.MP_WAITING
+            self.network.send_packet({"type": PacketType.REMATCH_REQUEST})
+            self.connection_message = "Ziadost odoslana. Cakam..."; self.state = GameState.MP_WAITING
 
     def cleanup_network(self):
         if self.network:
-            try:
-                self.network.send_packet({"type": PacketType.DISCONNECT})
-            except Exception:
-                pass
+            try: self.network.send_packet({"type": PacketType.DISCONNECT})
+            except: pass
             self.network.stop()
-        self.network = None
-        self.connection_message = ""
-        self.connection_lost = False
+        self.network = None; self.connection_message = ""; self.connection_lost = False
 
     def process_network_messages(self):
-        if not self.network:
-            return
-
-        packets = self.network.get_packets()
-        for packet in packets:
-            if not isinstance(packet, dict) or "type" not in packet:
-                continue
-            if self.mode == GameMode.HOST:
-                self.handle_host_packet(packet)
-            else:
-                self.handle_client_packet(packet)
+        if not self.network: return
+        for packet in self.network.get_packets():
+            if not isinstance(packet, dict) or "type" not in packet: continue
+            (self.handle_host_packet if self.mode == GameMode.HOST else self.handle_client_packet)(packet)
 
     def handle_host_packet(self, packet):
-        packet_type = packet["type"]
-
-        if packet_type == PacketType.HELLO:
-            self.connection_message = "Hráč sa pripojil. Čakám na READY..."
-            if not self.host_setup_sent:
-                self.send_setup()
-        elif packet_type == PacketType.READY:
-            self.connection_message = "Hráč je pripravený. Štartujem..."
-            self.send_start()
-            self.state = GameState.PLAYING
-            self.frame_count = 0
-        elif packet_type == PacketType.INPUT:
+        pt = packet["type"]
+        if pt == PacketType.HELLO:
+            self.connection_message = "Hrac sa pripojil. Cakam na READY..."
+            if not self.host_setup_sent: self.send_setup()
+        elif pt == PacketType.READY:
+            self.connection_message = "Hrac je pripraveny. Startujem..."
+            self.send_start(); self.state = GameState.PLAYING; self.frame_count = 0
+        elif pt == PacketType.INPUT:
             if packet.get("player") == 1:
-                self.remote_input["left"] = packet.get("left", False)
-                self.remote_input["right"] = packet.get("right", False)
-                self.remote_input["up"] = packet.get("up", False)
-                self.remote_input["down"] = packet.get("down", False)
+                for k in ["left","right","up","down"]: self.remote_input[k] = packet.get(k, False)
                 self.remote_input["frame"] = packet.get("frame", self.frame_count)
-        elif packet_type == PacketType.CRASH:
+        elif pt == PacketType.CRASH:
             self.remote_crashed = True
             if self.local_crashed and packet.get("frame") == self.frame_count:
-                self.multiplayer_result_text = "DRAW"
-                self.send_result("DRAW")
-                self.state = GameState.MP_RESULT
+                self.multiplayer_result_text = "DRAW"; self.send_result("DRAW"); self.state = GameState.MP_RESULT
             elif not self.local_crashed:
-                self.multiplayer_result_text = "WIN"
-                self.send_result("WIN")
-                self.state = GameState.MP_RESULT
-        elif packet_type == PacketType.REMATCH_REQUEST:
+                self.multiplayer_result_text = "WIN"; self.send_result("WIN"); self.state = GameState.MP_RESULT
+        elif pt == PacketType.REMATCH_REQUEST:
             if self.state == GameState.MP_RESULT:
-                self.send_rematch_response()
-                self.network_seed = random.randint(0, 2**31 - 1)
-                self.reset_game(seed=self.network_seed, multiplayer=True)
-                self.host_setup_sent = False
-                self.state = GameState.MP_WAITING
-                self.send_setup()
-        elif packet_type == PacketType.DISCONNECT:
-            self.connection_lost = True
-            self.connection_message = "Spojenie bolo prerušené."
-            self.multiplayer_result_text = "CONNECTION LOST"
-            self.state = GameState.MP_RESULT
+                self.send_rematch_response(); self.network_seed = random.randint(0, 2**31-1)
+                self.reset_game(seed=self.network_seed, multiplayer=True); self.host_setup_sent = False
+                self.state = GameState.MP_WAITING; self.send_setup()
+        elif pt == PacketType.DISCONNECT:
+            self.connection_lost = True; self.connection_message = "Spojenie prerusene."
+            self.multiplayer_result_text = "CONNECTION LOST"; self.state = GameState.MP_RESULT
 
     def handle_client_packet(self, packet):
-        packet_type = packet["type"]
-
-        if packet_type == PacketType.SETUP:
-            self.network_seed = packet.get("seed")
-            self.local_player_index = 1
+        pt = packet["type"]
+        if pt == PacketType.SETUP:
+            self.network_seed = packet.get("seed"); self.local_player_index = 1
             self.reset_game(seed=self.network_seed, multiplayer=True)
             self.player = self.players[self.local_player_index]
             self.network.send_packet({"type": PacketType.READY})
-            self.connection_message = "Nastavenie dokončené. Čakám na štart..."
-            self.state = GameState.MP_WAITING
-        elif packet_type == PacketType.START:
-            self.state = GameState.PLAYING
-            self.frame_count = 0
-        elif packet_type == PacketType.INPUT:
+            self.connection_message = "Nastavenie hotove. Cakam na start..."; self.state = GameState.MP_WAITING
+        elif pt == PacketType.START:
+            self.state = GameState.PLAYING; self.frame_count = 0
+        elif pt == PacketType.INPUT:
             if packet.get("player") == 0:
-                self.remote_input["left"] = packet.get("left", False)
-                self.remote_input["right"] = packet.get("right", False)
-                self.remote_input["up"] = packet.get("up", False)
-                self.remote_input["down"] = packet.get("down", False)
+                for k in ["left","right","up","down"]: self.remote_input[k] = packet.get(k, False)
                 self.remote_input["frame"] = packet.get("frame", self.frame_count)
-        elif packet_type == PacketType.RESULT:
-            self.multiplayer_result_text = packet.get("outcome", "LOSE")
-            self.state = GameState.MP_RESULT
-        elif packet_type == PacketType.REMATCH_RESPONSE:
-            self.connection_message = "Rematch akceptovaný. Čakám na nový zápas..."
-            self.state = GameState.MP_WAITING
-        elif packet_type == PacketType.DISCONNECT:
-            self.connection_lost = True
-            self.multiplayer_result_text = "CONNECTION LOST"
-            self.state = GameState.MP_RESULT
+        elif pt == PacketType.RESULT:
+            self.multiplayer_result_text = packet.get("outcome", "LOSE"); self.state = GameState.MP_RESULT
+        elif pt == PacketType.REMATCH_RESPONSE:
+            self.connection_message = "Rematch akceptovany. Cakam..."; self.state = GameState.MP_WAITING
+        elif pt == PacketType.DISCONNECT:
+            self.connection_lost = True; self.multiplayer_result_text = "CONNECTION LOST"; self.state = GameState.MP_RESULT
 
+    # --- Update ---
     def update_singleplayer(self):
         keys = pygame.key.get_pressed()
         self.player.update(keys)
         self.road.update(self.current_speed)
-        self.spawn_obstacle()
-        self.update_obstacles()
-        self.update_difficulty()
+        self.spawn_obstacle(); self.spawn_coin()
+        self.update_obstacles(); self.update_coins(); self.update_difficulty()
         self.audio.update_engine_pitch(self.current_speed)
         self.score_manager.increment_score(self.current_speed / 100)
-
+        self._update_effect_particles()
         if self.check_collisions(self.player):
-            self.audio.stop_engine()
-            self.audio.play_sfx('crash')
-            self.state = GameState.GAME_OVER
+            self.audio.stop_engine(); self.audio.play_sfx('crash'); self.state = GameState.GAME_OVER
 
     def update_multiplayer(self):
-        if not self.network or not self.network.is_connected():
-            return
+        if not self.network or not self.network.is_connected(): return
         keys = pygame.key.get_pressed()
-        left = keys[pygame.K_LEFT]
-        right = keys[pygame.K_RIGHT]
-        up = keys[pygame.K_UP]
-        down = keys[pygame.K_DOWN]
+        left, right, up, down = keys[pygame.K_LEFT], keys[pygame.K_RIGHT], keys[pygame.K_UP], keys[pygame.K_DOWN]
         self.local_input.update({"left": left, "right": right, "up": up, "down": down, "frame": self.frame_count})
-        self.send_input(left, right, up=up, down=down)
-
-        # apply local and remote inputs (Player.update accepts flags)
+        self.send_input(left, right, up, down)
         self.players[self.local_player_index].update(left=left, right=right, up=up, down=down)
-        remote_index = 1 - self.local_player_index
-        self.players[remote_index].update(left=self.remote_input["left"], right=self.remote_input["right"], up=self.remote_input.get("up", False), down=self.remote_input.get("down", False))
-
-        self.road.update(self.current_speed)
-        self.spawn_obstacle()
-        self.update_obstacles()
-        self.update_difficulty()
+        ri = 1 - self.local_player_index
+        self.players[ri].update(left=self.remote_input["left"], right=self.remote_input["right"],
+                                up=self.remote_input.get("up", False), down=self.remote_input.get("down", False))
+        self.road.update(self.current_speed); self.spawn_obstacle(); self.update_obstacles(); self.update_difficulty()
         self.audio.update_engine_pitch(self.current_speed)
         self.score_manager.increment_score(self.current_speed / 100)
-
+        self._update_effect_particles()
         if self.check_collisions(self.players[self.local_player_index]):
             if not self.local_crashed:
-                self.local_crashed = True
-                self.send_crash(self.local_player_index)
+                self.local_crashed = True; self.send_crash(self.local_player_index)
                 if self.mode == GameMode.CLIENT:
-                    self.connection_message = "Krach. Čakám na výsledok..."
-                    self.state = GameState.MP_WAITING
+                    self.connection_message = "Krach. Cakam na vysledok..."; self.state = GameState.MP_WAITING
                 elif self.mode == GameMode.HOST and not self.remote_crashed:
-                    self.multiplayer_result_text = "LOSE"
-                    self.send_result("LOSE")
-                    self.state = GameState.MP_RESULT
+                    self.multiplayer_result_text = "LOSE"; self.send_result("LOSE"); self.state = GameState.MP_RESULT
         if self.mode == GameMode.HOST and self.remote_crashed and self.state != GameState.MP_RESULT:
-            self.multiplayer_result_text = "WIN"
-            self.send_result("WIN")
-            self.state = GameState.MP_RESULT
-
+            self.multiplayer_result_text = "WIN"; self.send_result("WIN"); self.state = GameState.MP_RESULT
         self.frame_count += 1
 
+    # --- Effect particles update ---
+    def _update_effect_particles(self):
+        if not self.player:
+            return
+        active = self.score_manager.get_active_effects()
+        px, py = self.player.x, self.player.y
+        self.effect_frame += 1
+
+        # Exhaust particles
+        exhaust = active.get(EFFECT_EXHAUST)
+        if exhaust and self.effect_frame % 3 == 0:
+            col = exhaust["color"]
+            self.effect_particles.append({
+                "x": px + random.randint(-8, 8),
+                "y": py + PLAYER_HEIGHT - 5,
+                "vx": random.uniform(-1.0, 1.0),
+                "vy": random.uniform(1.5, 3.5),
+                "life": random.randint(15, 30),
+                "max_life": 30,
+                "color": col,
+                "size": random.randint(3, 7),
+                "type": "exhaust",
+            })
+
+        # Trail
+        trail = active.get(EFFECT_TRAIL)
+        if trail:
+            self.effect_trails.append({"x": px - PLAYER_WIDTH // 2 + 8, "y": py + PLAYER_HEIGHT - 10, "life": 40, "color": trail["color"]})
+            self.effect_trails.append({"x": px + PLAYER_WIDTH // 2 - 8, "y": py + PLAYER_HEIGHT - 10, "life": 40, "color": trail["color"]})
+
+        # Boost sparks on close obstacle pass
+        boost = active.get(EFFECT_BOOST)
+        if boost:
+            for o in self.obstacles:
+                c = self.road.get_center_at(o.y + OBSTACLE_HEIGHT // 2) + o.offset
+                dist = math.sqrt((px - c) ** 2 + (py - o.y) ** 2)
+                if dist < 50 and random.random() < 0.4:
+                    self.effect_particles.append({
+                        "x": px + random.randint(-20, 20),
+                        "y": py + random.randint(0, PLAYER_HEIGHT),
+                        "vx": random.uniform(-3, 3),
+                        "vy": random.uniform(-3, 1),
+                        "life": random.randint(8, 18),
+                        "max_life": 18,
+                        "color": boost["color"],
+                        "size": random.randint(2, 5),
+                        "type": "boost",
+                    })
+
+        # Decay particles
+        for p in self.effect_particles:
+            p["x"] += p["vx"]
+            p["y"] += p["vy"]
+            p["life"] -= 1
+        self.effect_particles = [p for p in self.effect_particles if p["life"] > 0]
+
+        # Decay trails
+        for t in self.effect_trails:
+            t["y"] += self.current_speed
+            t["life"] -= 1
+        self.effect_trails = [t for t in self.effect_trails if t["life"] > 0]
+
+    # --- Draw ---
     def draw_game(self):
         self.screen.fill(GRASS_COLOR)
         self.road.draw(self.screen)
+        for coin in self.coins_on_road: coin.draw(self.screen)
         for o in self.obstacles:
             c = self.road.get_center_at(o.y + OBSTACLE_HEIGHT // 2) + o.offset
             o.draw(self.screen, c)
+        self._draw_player_with_effects()
+        self.ui_manager.draw_hud(self.screen, int(self.score_manager.get_current_score()), self.current_speed,
+                                 self.audio, self.score_manager.session_coins)
 
+    def _draw_player_with_effects(self):
+        if not self.player:
+            return
+        active = self.score_manager.get_active_effects()
+        px, py = self.player.x, self.player.y
+
+        # GLOW: pulsing circle behind car
+        glow = active.get(EFFECT_GLOW)
+        if glow:
+            pulse = 0.6 + 0.4 * math.sin(self.effect_frame * 0.08)
+            r = int(50 * pulse)
+            glow_surf = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
+            alpha = int(60 * pulse)
+            pygame.draw.circle(glow_surf, (*glow["color"], alpha), (r, r), r)
+            self.screen.blit(glow_surf, (px - r, py + PLAYER_HEIGHT // 2 - r))
+
+        # TRAIL: position history on road
+        trail = active.get(EFFECT_TRAIL)
+        if trail:
+            for t in self.effect_trails:
+                a = int(180 * t["life"] / 40)
+                trail_surf = pygame.Surface((6, 4), pygame.SRCALPHA)
+                trail_surf.fill((*t["color"], a))
+                self.screen.blit(trail_surf, (int(t["x"]), int(t["y"])))
+
+        # Draw the car itself
         if self.mode == GameMode.SINGLEPLAYER:
             self.player.draw(self.screen)
         else:
             for p in self.players:
                 p.draw(self.screen)
 
-        self.ui_manager.draw_hud(self.screen, int(self.score_manager.get_current_score()), self.current_speed,
-                                 self.audio)
+        # EXHAUST & BOOST particles
+        for p in self.effect_particles:
+            a = int(220 * p["life"] / p["max_life"])
+            p_surf = pygame.Surface((p["size"] * 2, p["size"] * 2), pygame.SRCALPHA)
+            pygame.draw.circle(p_surf, (*p["color"], a), (p["size"], p["size"]), p["size"])
+            self.screen.blit(p_surf, (int(p["x"]) - p["size"], int(p["y"]) - p["size"]))
+
+        # AURA: speed lines at high speed
+        aura = active.get(EFFECT_AURA)
+        if aura and self.current_speed > MAX_SCROLL_SPEED * 0.5:
+            intensity = (self.current_speed - MAX_SCROLL_SPEED * 0.5) / (MAX_SCROLL_SPEED * 0.5)
+            num_lines = int(6 * intensity)
+            aura_surf = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+            for i in range(num_lines):
+                lx = px + random.randint(-120, 120)
+                ly = py + random.randint(-40, PLAYER_HEIGHT)
+                length = random.randint(20, 60)
+                a = int(100 * intensity * random.random())
+                pygame.draw.line(aura_surf, (*aura["color"], a), (lx, ly), (lx, ly + length), 2)
+            self.screen.blit(aura_surf, (0, 0))
 
     def draw_pause_screen(self):
-        overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-        overlay.fill((10, 10, 15, 200))
-        self.screen.blit(overlay, (0, 0))
-        panel_rect = pygame.Rect(WIDTH // 2 - 250, HEIGHT // 2 - 150, 500, 300)
-        self.ui_manager.draw_glass_panel(self.screen, panel_rect, alpha=255)
-        self.ui_manager.draw_text(self.screen, "PAUZA", self.ui_manager.font_large, UI_GOLD, WIDTH // 2,
-                                  panel_rect.y + 80, center=True)
-        self.ui_manager.draw_text(self.screen, "ESC - Pokračovať", self.ui_manager.font_medium, UI_TEXT_MAIN,
-                                  WIDTH // 2, panel_rect.y + 160, center=True)
-        self.ui_manager.draw_text(self.screen, "Q - Späť do menu", self.ui_manager.font_medium, UI_TEXT_DIM,
-                                  WIDTH // 2, panel_rect.y + 210, center=True)
+        ov = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA); ov.fill((10,10,15,200)); self.screen.blit(ov, (0,0))
+        pr = pygame.Rect(WIDTH//2-250, HEIGHT//2-150, 500, 300)
+        self.ui_manager.draw_glass_panel(self.screen, pr, 255)
+        self.ui_manager.draw_text(self.screen, "PAUZA", self.ui_manager.font_large, UI_GOLD, WIDTH//2, pr.y+80, center=True)
+        self.ui_manager.draw_text(self.screen, "ESC - Pokracovat", self.ui_manager.font_medium, UI_TEXT_MAIN, WIDTH//2, pr.y+160, center=True)
+        self.ui_manager.draw_text(self.screen, "Q - Spat do menu", self.ui_manager.font_medium, UI_TEXT_DIM, WIDTH//2, pr.y+210, center=True)
 
     def draw_multiplayer_status(self):
         self.ui_manager.draw_connection_status(self.screen, "Multiplayer", self.connection_message)
 
     def draw_multiplayer_result(self):
-        result = self.multiplayer_result_text
-        if result == "WIN":
-            caption = "VYHRAL SI"
-        elif result == "LOSE":
-            caption = "PREHRAL SI"
-        elif result == "DRAW":
-            caption = "REMÍZA"
-        else:
-            caption = result
-        self.ui_manager.draw_multiplayer_result(self.screen, caption)
+        r = self.multiplayer_result_text
+        c = {"WIN": "VYHRAL SI", "LOSE": "PREHRAL SI", "DRAW": "REMIZA"}.get(r, r)
+        self.ui_manager.draw_multiplayer_result(self.screen, c)
 
+    # --- Main Loop ---
     def run(self):
         while self.running:
             self.clock.tick(FPS)
@@ -517,109 +715,176 @@ class Game:
             mouse_clicked = False
 
             for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    self.running = False
-
+                if event.type == pygame.QUIT: self.running = False
                 if event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_m:
-                        self.audio.toggle_mute()
+                    if event.key == pygame.K_m: self.audio.toggle_mute()
                     elif event.key == pygame.K_PLUS:
-                        if self.audio.muted:
-                            self.audio.toggle_mute()
+                        if self.audio.muted: self.audio.toggle_mute()
                         self.audio.change_volume(0.1)
                     elif event.key == pygame.K_MINUS:
                         self.audio.change_volume(-0.1)
-                        if self.audio.engine_volume <= 0.01 and not self.audio.muted:
-                            self.audio.toggle_mute()
+                        if self.audio.engine_volume <= 0.01 and not self.audio.muted: self.audio.toggle_mute()
+                if event.type == pygame.MOUSEBUTTONDOWN: mouse_clicked = True
 
-                if event.type == pygame.MOUSEBUTTONDOWN:
-                    mouse_clicked = True
-
-                if self.state == GameState.MENU:
-                    self.handle_menu_input(event, mouse_pos, mouse_clicked)
-                elif self.state == GameState.MP_CLIENT_SETUP:
-                    self.handle_join_input(event)
-                elif self.state == GameState.PLAYING:
-                    self.handle_playing_input(event)
-                elif self.state == GameState.PAUSED:
-                    self.handle_paused_input(event)
-                elif self.state == GameState.MP_RESULT:
-                    self.handle_multiplayer_result_input(event)
-                elif self.state == GameState.GAME_OVER:
-                    self.handle_game_over_input(event, mouse_pos, mouse_clicked)
-                elif self.state == GameState.ENTERING_NAME:
-                    self.handle_name_input(event)
+                if self.state == GameState.MENU: self.handle_menu_input(event, mouse_pos, mouse_clicked)
+                elif self.state == GameState.MP_CLIENT_SETUP: self.handle_join_input(event)
+                elif self.state == GameState.PLAYING: self.handle_playing_input(event)
+                elif self.state == GameState.PAUSED: self.handle_paused_input(event)
+                elif self.state == GameState.MP_RESULT: self.handle_multiplayer_result_input(event)
+                elif self.state == GameState.GAME_OVER: self.handle_game_over_input(event, mouse_pos, mouse_clicked)
+                elif self.state == GameState.ENTERING_NAME: self.handle_name_input(event)
+                elif self.state == GameState.SKIN_SELECT: self.handle_skin_input(event)
+                elif self.state == GameState.LOOTBOX_SHOP: self.handle_lootbox_input(event)
+                elif self.state == GameState.PAYWALL: self.handle_paywall_input(event)
+                elif self.state == GameState.COLLECTION: self.handle_collection_input(event)
+                elif self.state == GameState.EFFECTS_SHOP: self.handle_effects_shop_input(event)
+                elif self.state == GameState.EQUIP_EFFECTS: self.handle_equip_effects_input(event)
 
             self.process_network_messages()
 
             if self.state == GameState.MENU:
-                action = self.ui_manager.draw_menu(self.screen, self.score_manager.get_highscores(), mouse_pos,
-                                                   mouse_clicked)
+                action = self.ui_manager.draw_menu(self.screen, self.score_manager.get_highscores(),
+                                                   self.score_manager.coins, mouse_pos, mouse_clicked)
                 if action == "single":
-                    self.audio.play_sfx('click')
-                    self.mode = GameMode.SINGLEPLAYER
-                    self.reset_game()
-                    self.state = GameState.PLAYING
+                    self.audio.play_sfx('click'); self.mode = GameMode.SINGLEPLAYER
+                    self.reset_game(); self.state = GameState.PLAYING
+                elif action == "skins":
+                    self.audio.play_sfx('click'); self.state = GameState.SKIN_SELECT
+                elif action == "lootbox":
+                    self.audio.play_sfx('click'); self.lootbox_result = None; self.state = GameState.LOOTBOX_SHOP
+                elif action == "effects":
+                    self.audio.play_sfx('click'); self.effect_box_result = None; self.state = GameState.EFFECTS_SHOP
+                elif action == "equip":
+                    self.audio.play_sfx('click'); self.state = GameState.EQUIP_EFFECTS
+                elif action == "collection":
+                    self.audio.play_sfx('click'); self.state = GameState.COLLECTION
                 elif action == "host":
-                    self.audio.play_sfx('click')
-                    self.start_host_session()
+                    self.audio.play_sfx('click'); self.start_host_session()
                 elif action == "join":
+                    self.audio.play_sfx('click'); self.mode = GameMode.CLIENT
+                    self.join_ip = ""; self.state = GameState.MP_CLIENT_SETUP
+
+            elif self.state == GameState.SKIN_SELECT:
+                action = self.ui_manager.draw_skin_selector(self.screen, self.selected_skin_index,
+                    self.score_manager.unlocked_skins, mouse_pos, mouse_clicked)
+                ul = sorted(self.score_manager.unlocked_skins) or [0]
+                cp = 0
+                for i, idx in enumerate(ul):
+                    if idx == self.selected_skin_index: cp = i; break
+                if action == "prev":
+                    self.audio.play_sfx('click'); cp = (cp-1)%len(ul); self.selected_skin_index = ul[cp]
+                elif action == "next":
+                    self.audio.play_sfx('click'); cp = (cp+1)%len(ul); self.selected_skin_index = ul[cp]
+                elif action in ("select", "back"):
+                    self.audio.play_sfx('click'); self.state = GameState.MENU
+
+            elif self.state == GameState.LOOTBOX_SHOP:
+                action = self.ui_manager.draw_lootbox_shop(self.screen, self.score_manager.coins,
+                    len(self.score_manager.unlocked_skins), len(CAR_SKINS),
+                    mouse_pos, mouse_clicked, self.lootbox_result,
+                    self.score_manager.pity_epic, self.score_manager.pity_legendary)
+                if action == "buy":
+                    self.audio.play_sfx('click'); self.lootbox_result = self.open_lootbox()
+                    self.ui_manager.lootbox_anim_frame = 0
+                elif action == "paywall":
+                    self.audio.play_sfx('click'); self.paywall_message = None; self.state = GameState.PAYWALL
+                elif action == "back":
+                    self.audio.play_sfx('click'); self.lootbox_result = None; self.state = GameState.MENU
+                if self.lootbox_result and mouse_clicked and self.ui_manager.lootbox_anim_frame > 235:
+                    self.audio.play_sfx('click'); self.lootbox_result = None
+
+            elif self.state == GameState.EFFECTS_SHOP:
+                action = self.ui_manager.draw_effects_shop(self.screen, self.score_manager.coins,
+                    len(self.score_manager.unlocked_effects), len(EFFECTS),
+                    mouse_pos, mouse_clicked, self.effect_box_result,
+                    self.score_manager.pity_epic, self.score_manager.pity_legendary)
+                if action == "buy":
+                    self.audio.play_sfx('click'); self.effect_box_result = self.open_effect_box()
+                    self.ui_manager.lootbox_anim_frame = 0
+                elif action == "paywall":
+                    self.audio.play_sfx('click'); self.paywall_message = None; self.state = GameState.PAYWALL
+                elif action == "back":
+                    self.audio.play_sfx('click'); self.effect_box_result = None; self.state = GameState.MENU
+                if self.effect_box_result and mouse_clicked and self.ui_manager.lootbox_anim_frame > 235:
+                    self.audio.play_sfx('click'); self.effect_box_result = None
+
+            elif self.state == GameState.EQUIP_EFFECTS:
+                action = self.ui_manager.draw_equip_effects(self.screen,
+                    self.score_manager.unlocked_effects, self.score_manager.equipped_effects,
+                    self.effect_equip_category, mouse_pos, mouse_clicked)
+                if action == "back":
+                    self.audio.play_sfx('click'); self.state = GameState.MENU
+                elif action == "prev_cat":
                     self.audio.play_sfx('click')
-                    self.mode = GameMode.CLIENT
-                    self.join_ip = ""
-                    self.state = GameState.MP_CLIENT_SETUP
+                    self.effect_equip_category = (self.effect_equip_category - 1) % len(EFFECT_TYPE_LABELS)
+                elif action == "next_cat":
+                    self.audio.play_sfx('click')
+                    self.effect_equip_category = (self.effect_equip_category + 1) % len(EFFECT_TYPE_LABELS)
+                elif action and action.startswith("equip_"):
+                    idx = int(action.split("_")[1])
+                    self.audio.play_sfx('click'); self.score_manager.equip_effect(idx)
+                elif action and action.startswith("unequip_"):
+                    etype = action.split("_", 1)[1]
+                    self.audio.play_sfx('click'); self.score_manager.unequip_effect(etype)
+
+            elif self.state == GameState.PAYWALL:
+                action = self.ui_manager.draw_paywall(self.screen, self.score_manager.coins, mouse_pos, mouse_clicked)
+                if action == "close":
+                    self.audio.play_sfx('click'); self.paywall_message = None; self.state = GameState.LOOTBOX_SHOP
+                elif action and action.startswith("pkg_"):
+                    self.audio.play_sfx('click')
+                    pkg_idx = int(action.split("_")[1])
+                    if pkg_idx < len(COIN_PACKAGES) and COIN_PACKAGES[pkg_idx].get("admin", False):
+                        self.score_manager.add_coins(COIN_PACKAGES[pkg_idx]["coins"])
+                        self.paywall_message = True
+                    else:
+                        self.paywall_message = True
+                if self.paywall_message and mouse_clicked:
+                    self.paywall_message = None; self.state = GameState.LOOTBOX_SHOP
+
+            elif self.state == GameState.COLLECTION:
+                action = self.ui_manager.draw_collection(self.screen, self.score_manager.unlocked_skins,
+                                                          mouse_pos, mouse_clicked)
+                if action == "back":
+                    self.audio.play_sfx('click'); self.state = GameState.MENU
 
             elif self.state == GameState.MP_CLIENT_SETUP:
                 self.screen.fill(GRASS_COLOR)
                 action = self.ui_manager.draw_multiplayer_setup(self.screen, "JOIN GAME",
-                                                               "Zadaj IP hostiteľa a stlač ENTER:", self.join_ip,
-                                                               mouse_pos, mouse_clicked)
+                    "Zadaj IP hostitela a stlac ENTER:", self.join_ip, mouse_pos, mouse_clicked)
                 if action == "join" and len(self.join_ip) > 0:
                     self.audio.play_sfx('click')
-                    self.network = ClientPeer(self.join_ip, MULTIPLAYER_PORT)
-                    self.network.connect()
+                    self.network = ClientPeer(self.join_ip, MULTIPLAYER_PORT); self.network.connect()
                     if self.network.is_connected():
-                        self.connection_message = f"Pripojené na {self.join_ip}:{MULTIPLAYER_PORT}. Čakám na hostiteľa..."
+                        self.connection_message = f"Pripojene na {self.join_ip}:{MULTIPLAYER_PORT}. Cakam..."
                         self.network.send_packet({"type": PacketType.HELLO, "role": "client"})
                         self.state = GameState.MP_WAITING
                     else:
-                        self.connection_message = "Nepodarilo sa pripojiť. Skontroluj IP a skúšaj znova."
+                        self.connection_message = "Nepodarilo sa pripojit."
                 elif action == "back":
                     self.state = GameState.MENU
 
             elif self.state == GameState.MP_WAITING:
-                self.screen.fill(GRASS_COLOR)
-                self.draw_multiplayer_status()
-
+                self.screen.fill(GRASS_COLOR); self.draw_multiplayer_status()
             elif self.state == GameState.PLAYING:
-                if self.mode == GameMode.SINGLEPLAYER:
-                    self.update_singleplayer()
-                else:
-                    self.update_multiplayer()
+                if self.mode == GameMode.SINGLEPLAYER: self.update_singleplayer()
+                else: self.update_multiplayer()
                 self.draw_game()
-
             elif self.state == GameState.PAUSED:
-                self.draw_game()
-                self.draw_pause_screen()
-
+                self.draw_game(); self.draw_pause_screen()
             elif self.state == GameState.GAME_OVER:
                 self.draw_game()
                 score = self.score_manager.get_current_score()
                 if self.ui_manager.draw_game_over_screen(self.screen, int(score),
-                                                         self.score_manager.is_highscore(score), mouse_pos,
-                                                         mouse_clicked):
-                    self.audio.play_sfx('click')
-                    self.state = GameState.MENU
-
+                        self.score_manager.is_highscore(score), self.score_manager.session_coins, mouse_pos, mouse_clicked):
+                    self.audio.play_sfx('click'); self.state = GameState.MENU
             elif self.state == GameState.ENTERING_NAME:
                 self.draw_game()
                 self.ui_manager.draw_game_over_screen(self.screen, int(self.score_manager.get_current_score()), True,
-                                                      mouse_pos, False)
+                                                      self.score_manager.session_coins, mouse_pos, False)
                 self.ui_manager.draw_name_input(self.screen, self.player_name)
-
             elif self.state == GameState.MP_RESULT:
-                self.draw_game()
-                self.draw_multiplayer_result()
+                self.draw_game(); self.draw_multiplayer_result()
 
             keys = pygame.key.get_pressed()
             if keys[pygame.K_TAB]:
